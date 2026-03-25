@@ -149,9 +149,12 @@ export const useAppStore = create<AppState>()(
       },
 
       dismissBannerTemporary: () => {
-        const key = 'banner_dismissed_until';
+        const banner = get().emergencyBanner;
         const until = Date.now() + 5 * 60 * 1000;
-        localStorage.setItem(key, until.toString());
+        localStorage.setItem('banner_dismissed_until', until.toString());
+        if (banner?.id) {
+          localStorage.setItem('banner_dismissed_id', banner.id.toString());
+        }
       },
 
       dismissBannerPermanent: async () => {
@@ -163,8 +166,14 @@ export const useAppStore = create<AppState>()(
       },
 
       isBannerDismissed: () => {
+        const banner = get().emergencyBanner;
         const until = localStorage.getItem('banner_dismissed_until');
         if (!until) return false;
+        // If the current banner is different from the dismissed one, always show it
+        const dismissedId = localStorage.getItem('banner_dismissed_id');
+        if (banner?.id && dismissedId && banner.id.toString() !== dismissedId) {
+          return false;
+        }
         return Date.now() < parseInt(until);
       },
     }),
