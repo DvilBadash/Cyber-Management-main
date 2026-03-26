@@ -9,6 +9,7 @@ interface SystemsState {
 
   loadSystems: () => Promise<void>;
   updateSystemStatus: (id: number, status: MonitoredSystem['currentStatus'], notes: string, checkedBy: string) => Promise<void>;
+  updateSystem: (id: number, updates: Partial<MonitoredSystem>) => Promise<void>;
   addSystem: (system: Omit<MonitoredSystem, 'id'>) => Promise<void>;
   getChecks: (systemId: number) => Promise<SystemCheck[]>;
 
@@ -40,6 +41,11 @@ export const useSystemsStore = create<SystemsState>((set) => ({
         sys.id === id ? { ...sys, currentStatus: status, lastChecked: now } : sys
       ),
     }));
+  },
+
+  updateSystem: async (id, updates) => {
+    const updated = await systemsApi.update(id, updates);
+    set((s) => ({ systems: s.systems.map((sys) => (sys.id === id ? { ...sys, ...updated } : sys)) }));
   },
 
   addSystem: async (system) => {

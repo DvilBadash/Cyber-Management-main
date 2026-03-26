@@ -26,7 +26,7 @@ const navBtn: React.CSSProperties = {
 };
 
 // ===== SystemCard (inline status update) =====
-function SystemCard({ system, onUpdate }: { system: MonitoredSystem; onUpdate: () => void }) {
+function SystemCard({ system, onUpdate, onEdit }: { system: MonitoredSystem; onUpdate: () => void; onEdit: (sys: MonitoredSystem) => void }) {
   const [updating, setUpdating] = useState(false);
   const [notes, setNotes] = useState('');
   const [newStatus, setNewStatus] = useState<SystemStatus>(system.currentStatus);
@@ -67,15 +67,18 @@ function SystemCard({ system, onUpdate }: { system: MonitoredSystem; onUpdate: (
           {system.description}
         </p>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
         {system.lastChecked && (
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             בדיקה אחרונה: {format(new Date(system.lastChecked), 'dd/MM HH:mm')}
           </span>
         )}
-        <Button variant="ghost" size="sm" icon={<RefreshCw size={12} />} onClick={() => setUpdating(true)}>
-          עדכן סטטוס
-        </Button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <Button variant="ghost" size="sm" onClick={() => onEdit(system)}>עריכה</Button>
+          <Button variant="ghost" size="sm" icon={<RefreshCw size={12} />} onClick={() => setUpdating(true)}>
+            עדכן סטטוס
+          </Button>
+        </div>
       </div>
       {updating && (
         <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
@@ -107,7 +110,7 @@ function SystemCard({ system, onUpdate }: { system: MonitoredSystem; onUpdate: (
 // ===== Main component =====
 export function SystemsCheck() {
   const [activeTab, setActiveTab] = useState<'daily' | 'manage'>('daily');
-  const { systems, addSystem } = useSystemsStore();
+  const { systems, addSystem, updateSystem } = useSystemsStore();
   const { addToast, currentUser, logActivity } = useAppStore();
   const { systemCategories } = useListsStore();
 
@@ -178,6 +181,22 @@ export function SystemsCheck() {
     addToast({ type: 'success', message: 'בדיקה יומית נשמרה בהצלחה' });
     setShowDailyCheck(false);
     await loadSessions();
+  };
+
+  // ── Edit system ──
+  const [editSystem, setEditSystem] = useState<MonitoredSystem | null>(null);
+  const [editSysDraft, setEditSysDraft] = useState({ name: '', category: '', description: '', owner: '', checkFrequency: 'daily' as 'hourly' | 'daily' | 'weekly' });
+
+  const openEditSystem = (sys: MonitoredSystem) => {
+    setEditSystem(sys);
+    setEditSysDraft({ name: sys.name, category: sys.category, description: sys.description || '', owner: sys.owner || '', checkFrequency: sys.checkFrequency });
+  };
+
+  const handleSaveEditSystem = async () => {
+    if (!editSystem?.id || !editSysDraft.name.trim()) return;
+    await updateSystem(editSystem.id, editSysDraft);
+    setEditSystem(null);
+    addToast({ type: 'success', message: 'מערכת עודכנה' });
   };
 
   // ── Manage tab ──
@@ -378,7 +397,7 @@ export function SystemsCheck() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {filtered.map(sys => (
-              <SystemCard key={`${sys.id}-${refresh}`} system={sys} onUpdate={() => setRefresh(r => r + 1)} />
+              <SystemCard key={`${sys.id}-${refresh}`} system={sys} onUpdate={() => setRefresh(r => r + 1)} onEdit={openEditSystem} />
             ))}
           </div>
         </>
@@ -433,6 +452,43 @@ export function SystemsCheck() {
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '4px' }}>
             <Button variant="ghost" onClick={() => setShowDailyCheck(false)}>ביטול</Button>
             <Button variant="primary" icon={<CheckCircle size={14} />} onClick={handleSaveDailyCheck}>שמור בדיקה</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Edit System Modal ── */}
+      <Modal open={!!editSystem} onClose={() => setEditSystem(null)} title="עריכת מערכת" size="md">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {[
+            { label: 'שם המערכת *', key: 'name', placeholder: '' },
+            { label: 'בעל המערכת', key: 'owner', placeholder: '' },
+            { label: 'תיאור', key: 'description', placeholder: '' },
+          ].map(f => (
+            <div key={f.key}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>{f.label}</label>
+              <input value={(editSysDraft as any)[f.key]} onChange={e => setEditSysDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px', boxSizing: 'border-box' as const }} />
+            </div>
+          ))}
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>קטגוריה</label>
+            <select value={editSysDraft.category} onChange={e => setEditSysDraft(d => ({ ...d, category: e.target.value }))}
+              style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px' }}>
+              {systemCategories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>תדירות בדיקה</label>
+            <select value={editSysDraft.checkFrequency} onChange={e => setEditSysDraft(d => ({ ...d, checkFrequency: e.target.value as any }))}
+              style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px' }}>
+              <option value="hourly">שעתי</option>
+              <option value="daily">יומי</option>
+              <option value="weekly">שבועי</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <Button variant="ghost" onClick={() => setEditSystem(null)}>ביטול</Button>
+            <Button variant="primary" onClick={handleSaveEditSystem} disabled={!editSysDraft.name.trim()}>שמור</Button>
           </div>
         </div>
       </Modal>

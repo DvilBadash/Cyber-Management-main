@@ -7,7 +7,7 @@ import { EmailModal } from '../components/ui/EmailModal';
 import { eventsApi, playbooksApi, usersApi } from '../api/client';
 import { useAppStore } from '../store/appStore';
 import type { SpecialEvent, SpecialEventType, SpecialEventStatus, EventChecklistItem } from '../types';
-import type { PlaybookItem, Playbook } from '../types';
+import type { Playbook } from '../types';
 import { SPECIAL_EVENT_TYPE_LABELS } from '../types';
 import { format } from 'date-fns';
 
@@ -50,7 +50,11 @@ export function SpecialEvents() {
   // ── Detail / edit modal ────────────────────────────────────────────────────
   const [selected, setSelected] = useState<SpecialEvent | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [editDraft, setEditDraft] = useState({ name: '', description: '' });
+  const [editDraft, setEditDraft] = useState({
+    name: '', type: 'operation' as SpecialEventType, description: '',
+    objectives: '', startDate: '', endDate: '', status: 'planned' as SpecialEventStatus,
+    findings: '', lessonsLearned: '',
+  });
   const [checklist, setChecklist] = useState<EventChecklistItem[]>([]);
 
   // ── Email modal ────────────────────────────────────────────────────────────
@@ -82,7 +86,17 @@ export function SpecialEvents() {
   useEffect(() => {
     if (selected?.id) {
       eventsApi.getChecklist(selected.id).then(setChecklist);
-      setEditDraft({ name: selected.name, description: selected.description || '' });
+      setEditDraft({
+        name: selected.name,
+        type: selected.type,
+        description: selected.description || '',
+        objectives: selected.objectives || '',
+        startDate: selected.startDate,
+        endDate: selected.endDate || '',
+        status: selected.status,
+        findings: selected.findings || '',
+        lessonsLearned: selected.lessonsLearned || '',
+      });
       setEditMode(false);
     }
   }, [selected?.id]);
@@ -351,19 +365,59 @@ export function SpecialEvents() {
             {editMode ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>שם האירוע</label>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>שם האירוע *</label>
                   <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))} style={INPUT_STYLE} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>סוג אירוע</label>
+                    <select value={editDraft.type} onChange={e => setEditDraft(d => ({ ...d, type: e.target.value as SpecialEventType }))} style={INPUT_STYLE}>
+                      {Object.entries(SPECIAL_EVENT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>סטטוס</label>
+                    <select value={editDraft.status} onChange={e => setEditDraft(d => ({ ...d, status: e.target.value as SpecialEventStatus }))} style={INPUT_STYLE}>
+                      {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>תאריך התחלה *</label>
+                    <input type="date" value={editDraft.startDate} onChange={e => setEditDraft(d => ({ ...d, startDate: e.target.value }))} style={INPUT_STYLE} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>תאריך סיום</label>
+                    <input type="date" value={editDraft.endDate} onChange={e => setEditDraft(d => ({ ...d, endDate: e.target.value }))} style={INPUT_STYLE} />
+                  </div>
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>תיאור</label>
-                  <textarea value={editDraft.description} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={3}
+                  <textarea value={editDraft.description} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={2}
+                    style={{ ...INPUT_STYLE, resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>מטרות</label>
+                  <textarea value={editDraft.objectives} onChange={e => setEditDraft(d => ({ ...d, objectives: e.target.value }))} rows={2}
+                    style={{ ...INPUT_STYLE, resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>ממצאים</label>
+                  <textarea value={editDraft.findings} onChange={e => setEditDraft(d => ({ ...d, findings: e.target.value }))} rows={2}
+                    style={{ ...INPUT_STYLE, resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>לקחים</label>
+                  <textarea value={editDraft.lessonsLearned} onChange={e => setEditDraft(d => ({ ...d, lessonsLearned: e.target.value }))} rows={2}
                     style={{ ...INPUT_STYLE, resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
               </div>
             ) : (
-              selected.description && (
-                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.6 }}>{selected.description}</p>
-              )
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {selected.description && <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.6 }}>{selected.description}</p>}
+                {selected.objectives && <div style={{ fontSize: '12px' }}><span style={{ color: 'var(--text-muted)' }}>מטרות: </span><span style={{ color: 'var(--text-secondary)' }}>{selected.objectives}</span></div>}
+                {selected.findings && <div style={{ fontSize: '12px' }}><span style={{ color: 'var(--text-muted)' }}>ממצאים: </span><span style={{ color: 'var(--text-secondary)' }}>{selected.findings}</span></div>}
+                {selected.lessonsLearned && <div style={{ fontSize: '12px' }}><span style={{ color: 'var(--text-muted)' }}>לקחים: </span><span style={{ color: 'var(--text-secondary)' }}>{selected.lessonsLearned}</span></div>}
+              </div>
             )}
 
             {/* Checklist */}

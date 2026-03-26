@@ -16,7 +16,7 @@ export type SystemStatus = 'online' | 'degraded' | 'offline';
 
 export type CVEStatus = 'new' | 'investigating' | 'patching' | 'mitigated' | 'wont_fix';
 
-export type UserRole = 'admin' | 'team_lead' | 'senior_analyst' | 'analyst' | 'viewer';
+export type UserRole = string;
 
 export type SpecialEventType = 'red_team' | 'blue_team' | 'operation' | 'investigation' | 'infrastructure' | 'external';
 

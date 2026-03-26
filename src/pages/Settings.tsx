@@ -175,6 +175,9 @@ export function Settings() {
       isActive: true,
       createdAt: now,
     });
+    // Clear any existing dismiss so the new banner always shows
+    localStorage.removeItem('banner_dismissed_until');
+    localStorage.removeItem('banner_dismissed_id');
     await loadBanner();
     setBannerForm({ message: '', severity: 'high', expiresAt: '' });
     setSaved(true);

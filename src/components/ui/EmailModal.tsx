@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Send, Users, X } from 'lucide-react';
+import { Send, Users } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { sendEmail } from '../../utils/emailService';

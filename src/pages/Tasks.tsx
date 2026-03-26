@@ -84,6 +84,8 @@ export function Tasks() {
   const [activeTab, setActiveTab] = useState<TaskType>('one_time');
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState<Task | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editDraft, setEditDraft] = useState({ title: '', description: '', priority: 'normal' as TaskPriority, dueDate: '', recurrenceFrequency: 'weekly' as RecurrenceFrequency });
   const [showEmail, setShowEmail] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [form, setForm] = useState({
@@ -130,8 +132,35 @@ export function Tasks() {
 
   const handleMove = async (id: number, status: TaskStatus) => {
     await updateTask(id, { status });
-    setSelected(null);
+    setSelected(s => s ? { ...s, status } : null);
     addToast({ type: 'info', message: `משימה הועברה ל"${TASK_STATUS_LABELS[status]}"` });
+  };
+
+  const openDetail = (task: Task) => {
+    setSelected(task);
+    setEditDraft({
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      dueDate: task.dueDate || '',
+      recurrenceFrequency: task.recurrenceFrequency || 'weekly',
+    });
+    setEditMode(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selected?.id || !editDraft.title.trim()) return;
+    const updates: Partial<Task> = {
+      title: editDraft.title,
+      description: editDraft.description || undefined,
+      priority: editDraft.priority,
+      dueDate: editDraft.dueDate || undefined,
+      ...(( selected.taskType ?? 'one_time') === 'recurring' ? { recurrenceFrequency: editDraft.recurrenceFrequency } : {}),
+    };
+    await updateTask(selected.id, updates);
+    setSelected(s => s ? { ...s, ...updates } : null);
+    setEditMode(false);
+    addToast({ type: 'success', message: 'משימה עודכנה' });
   };
 
   const handleToggleAssignee = async (userId: number) => {
@@ -218,7 +247,7 @@ export function Tasks() {
                 </span>
               </div>
               {items.map(task => (
-                <TaskCard key={task.id} task={task} users={users} onClick={() => setSelected(task)} />
+                <TaskCard key={task.id} task={task} users={users} onClick={() => openDetail(task)} />
               ))}
               {items.length === 0 && (
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', padding: '20px 0', border: '1px dashed var(--border)', borderRadius: '10px' }}>
@@ -340,28 +369,69 @@ export function Tasks() {
       </Modal>
 
       {/* Task Detail Modal */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.title || ''} size="md">
+      <Modal open={!!selected && !showEmail} onClose={() => setSelected(null)} title={editMode ? 'עריכת משימה' : (selected?.title || '')} size="md">
         {selected && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {selected.description && (
-              <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{selected.description}</p>
+
+            {editMode ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>כותרת *</label>
+                  <input value={editDraft.title} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px', boxSizing: 'border-box' as const }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>תיאור</label>
+                  <textarea value={editDraft.description} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} rows={3}
+                    style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: (selected.taskType ?? 'one_time') === 'recurring' ? '1fr 1fr 1fr' : '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>עדיפות</label>
+                    <select value={editDraft.priority} onChange={e => setEditDraft(d => ({ ...d, priority: e.target.value as TaskPriority }))}
+                      style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px' }}>
+                      {Object.entries(TASK_PRIORITY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  {(selected.taskType ?? 'one_time') === 'recurring' && (
+                    <div>
+                      <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>תדירות</label>
+                      <select value={editDraft.recurrenceFrequency} onChange={e => setEditDraft(d => ({ ...d, recurrenceFrequency: e.target.value as RecurrenceFrequency }))}
+                        style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px' }}>
+                        {Object.entries(RECURRENCE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>תאריך יעד</label>
+                    <input type="date" value={editDraft.dueDate} onChange={e => setEditDraft(d => ({ ...d, dueDate: e.target.value }))}
+                      style={{ width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '14px', boxSizing: 'border-box' as const }} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {selected.description && (
+                  <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{selected.description}</p>
+                )}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <Badge value={selected.priority} />
+                  <Badge value={selected.status} />
+                  {(selected.taskType ?? 'one_time') === 'recurring' && selected.recurrenceFrequency && (
+                    <span style={{ fontSize: '12px', color: 'var(--accent-purple)', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <RefreshCw size={10} />
+                      {RECURRENCE_LABELS[selected.recurrenceFrequency]} (חוזרת)
+                    </span>
+                  )}
+                  {selected.dueDate && (
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={12} />
+                      {format(new Date(selected.dueDate), 'dd/MM/yyyy')}
+                    </span>
+                  )}
+                </div>
+              </>
             )}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <Badge value={selected.priority} />
-              <Badge value={selected.status} />
-              {(selected.taskType ?? 'one_time') === 'recurring' && selected.recurrenceFrequency && (
-                <span style={{ fontSize: '12px', color: 'var(--accent-purple)', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '6px', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <RefreshCw size={10} />
-                  {RECURRENCE_LABELS[selected.recurrenceFrequency]} (חוזרת)
-                </span>
-              )}
-              {selected.dueDate && (
-                <span style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Clock size={12} />
-                  {format(new Date(selected.dueDate), 'dd/MM/yyyy')}
-                </span>
-              )}
-            </div>
 
             {/* Assigned Users */}
             {users.length > 0 && (
@@ -374,18 +444,14 @@ export function Tasks() {
                   {users.map(u => {
                     const isAssigned = (selected.assignedUserIds ?? []).includes(u.id!);
                     return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => handleToggleAssignee(u.id!)}
+                      <button key={u.id} type="button" onClick={() => handleToggleAssignee(u.id!)}
                         style={{
                           padding: '5px 12px', borderRadius: '20px', cursor: 'pointer',
                           border: `1px solid ${isAssigned ? 'var(--accent-primary)' : 'var(--border)'}`,
                           background: isAssigned ? 'rgba(0,212,255,0.15)' : 'var(--bg-hover)',
                           color: isAssigned ? 'var(--accent-primary)' : 'var(--text-secondary)',
                           fontSize: '13px', fontWeight: isAssigned ? 600 : 400, transition: 'all 0.15s',
-                        }}
-                      >
+                        }}>
                         {isAssigned ? '✓ ' : ''}{u.fullName}
                       </button>
                     );
@@ -394,21 +460,33 @@ export function Tasks() {
               </div>
             )}
 
-            <div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>העבר לשלב</div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {COLUMNS.filter(c => c.status !== selected.status).map(col => (
-                  <Button key={col.status} variant="ghost" size="sm" onClick={() => handleMove(selected.id!, col.status)}>
-                    {col.label}
-                  </Button>
-                ))}
+            {!editMode && (
+              <div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>העבר לשלב</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {COLUMNS.filter(c => c.status !== selected.status).map(col => (
+                    <Button key={col.status} variant="ghost" size="sm" onClick={() => handleMove(selected.id!, col.status)}>
+                      {col.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', display: 'flex', gap: '8px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <Button variant="ghost" size="sm" icon={<Mail size={14} />} onClick={() => setShowEmail(true)}>
-                שלח מייל על משימה זו
+                שלח מייל
               </Button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {editMode ? (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={() => setEditMode(false)}>ביטול</Button>
+                    <Button variant="primary" size="sm" onClick={handleSaveEdit} disabled={!editDraft.title.trim()}>שמור</Button>
+                  </>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => setEditMode(true)}>עריכה</Button>
+                )}
+              </div>
             </div>
           </div>
         )}
