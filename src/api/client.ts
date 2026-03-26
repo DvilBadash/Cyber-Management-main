@@ -102,6 +102,7 @@ export const systemsApi = {
   getChecks: (systemId: number) => get<import('../types').SystemCheck[]>(`/systems/${systemId}/checks`),
   addCheck: (systemId: number, check: Omit<import('../types').SystemCheck, 'id'>) =>
     post<import('../types').SystemCheck>(`/systems/${systemId}/checks`, check),
+  getChecksByDate: (date: string) => get<(import('../types').SystemCheck & { systemName: string; systemCategory: string })[]>(`/systems/checks/by-date?date=${date}`),
   getDailySessions: () => get<import('../types').DailyCheckSession[]>('/systems/daily/sessions'),
   saveDailySession: (session: Omit<import('../types').DailyCheckSession, 'id'>) =>
     post<import('../types').DailyCheckSession>('/systems/daily/sessions', session),

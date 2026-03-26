@@ -58,7 +58,8 @@ router.put('/ticker/messages/:id', (req, res) => {
   const existing = db.prepare(`SELECT * FROM ticker_messages WHERE id=?`).get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, id, isActive: req.body.isActive !== undefined ? (req.body.isActive ? 1 : 0) : existing.isActive };
-  db.prepare(`UPDATE ticker_messages SET content=@content,severity=@severity,"order"=@order,isActive=@isActive WHERE id=@id`).run(merged);
+  db.prepare(`UPDATE ticker_messages SET content=@content,severity=@severity,"order"=@order,isActive=@isActive WHERE id=@id`)
+    .run({ id, content: merged.content, severity: merged.severity, order: merged.order, isActive: merged.isActive });
   res.json({ ...merged, isActive: !!merged.isActive });
 });
 
@@ -104,7 +105,8 @@ router.put('/banners/all/:id', (req, res) => {
   const existing = db.prepare(`SELECT * FROM emergency_banners WHERE id=?`).get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, id, isActive: req.body.isActive !== undefined ? (req.body.isActive ? 1 : 0) : existing.isActive };
-  db.prepare(`UPDATE emergency_banners SET message=@message,severity=@severity,expiresAt=@expiresAt,isActive=@isActive WHERE id=@id`).run(merged);
+  db.prepare(`UPDATE emergency_banners SET message=@message,severity=@severity,expiresAt=@expiresAt,isActive=@isActive WHERE id=@id`)
+    .run({ id, message: merged.message, severity: merged.severity, expiresAt: merged.expiresAt, isActive: merged.isActive });
   res.json({ ...merged, isActive: !!merged.isActive });
 });
 

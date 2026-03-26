@@ -39,14 +39,26 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare(`SELECT * FROM special_events WHERE id=?`).get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, id };
+  const params = {
+    id,
+    name: merged.name,
+    type: merged.type,
+    description: merged.description ?? null,
+    objectives: merged.objectives ?? null,
+    startDate: merged.startDate,
+    endDate: merged.endDate ?? null,
+    status: merged.status,
+    findings: merged.findings ?? null,
+    lessonsLearned: merged.lessonsLearned ?? null,
+  };
   db.prepare(`
     UPDATE special_events SET
       name=@name,type=@type,description=@description,objectives=@objectives,
       startDate=@startDate,endDate=@endDate,status=@status,
       findings=@findings,lessonsLearned=@lessonsLearned
     WHERE id=@id
-  `).run(merged);
-  res.json(merged);
+  `).run(params);
+  res.json({ ...merged, ...params });
 });
 
 // DELETE /api/events/:id

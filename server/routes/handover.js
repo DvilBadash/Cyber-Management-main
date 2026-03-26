@@ -26,7 +26,8 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare(`SELECT * FROM shift_handovers WHERE id=?`).get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, id };
-  db.prepare(`UPDATE shift_handovers SET outgoingAnalyst=@outgoingAnalyst,incomingAnalyst=@incomingAnalyst,signedAt=@signedAt,receivedAt=@receivedAt,notes=@notes WHERE id=@id`).run(merged);
+  db.prepare(`UPDATE shift_handovers SET outgoingAnalyst=@outgoingAnalyst,incomingAnalyst=@incomingAnalyst,signedAt=@signedAt,receivedAt=@receivedAt,notes=@notes WHERE id=@id`)
+    .run({ id, outgoingAnalyst: merged.outgoingAnalyst, incomingAnalyst: merged.incomingAnalyst, signedAt: merged.signedAt, receivedAt: merged.receivedAt, notes: merged.notes });
   res.json(merged);
 });
 
@@ -54,7 +55,8 @@ router.put('/items/:itemId', (req, res) => {
   const existing = db.prepare(`SELECT * FROM handover_items WHERE id=?`).get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, id };
-  db.prepare(`UPDATE handover_items SET type=@type,description=@description,linkedIncidentId=@linkedIncidentId,status=@status WHERE id=@id`).run(merged);
+  db.prepare(`UPDATE handover_items SET type=@type,description=@description,linkedIncidentId=@linkedIncidentId,status=@status WHERE id=@id`)
+    .run({ id, type: merged.type, description: merged.description, linkedIncidentId: merged.linkedIncidentId, status: merged.status });
   res.json(merged);
 });
 

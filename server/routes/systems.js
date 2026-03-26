@@ -37,6 +37,21 @@ router.put('/:id', (req, res) => {
   res.json({ ...merged, isActive: !!merged.isActive });
 });
 
+// GET /api/systems/checks/by-date?date=YYYY-MM-DD
+router.get('/checks/by-date', (req, res) => {
+  const db = getDb();
+  const { date } = req.query;
+  if (!date) return res.status(400).json({ error: 'date required' });
+  const rows = db.prepare(`
+    SELECT sc.*, s.name as systemName, s.category as systemCategory
+    FROM system_checks sc
+    LEFT JOIN systems s ON s.id = sc.systemId
+    WHERE substr(sc.checkedAt, 1, 10) = ?
+    ORDER BY s.name ASC, sc.checkedAt DESC
+  `).all(date);
+  res.json(rows);
+});
+
 // GET /api/systems/:id/checks
 router.get('/:id/checks', (req, res) => {
   const db = getDb();
@@ -54,7 +69,8 @@ router.post('/:id/checks', (req, res) => {
   `).run(d);
 
   // Update the system's current status + lastChecked
-  db.prepare(`UPDATE systems SET currentStatus=@status, lastChecked=@checkedAt WHERE id=@systemId`).run(d);
+  db.prepare(`UPDATE systems SET currentStatus=@status, lastChecked=@checkedAt WHERE id=@systemId`)
+    .run({ status: d.status, checkedAt: d.checkedAt, systemId: d.systemId });
 
   // Handle downtime tracking
   if (d.status === 'offline') {

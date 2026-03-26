@@ -66,7 +66,7 @@ router.put('/:id', (req, res) => {
       phone=@phone,role=@role,department=@department,avatarUrl=@avatarUrl,
       isActive=@isActive,lastLogin=@lastLogin
     WHERE id=@id
-  `).run(merged);
+  `).run({ id, fullName: merged.fullName, username: merged.username, passwordHash: merged.passwordHash, email: merged.email, phone: merged.phone, role: merged.role, department: merged.department, avatarUrl: merged.avatarUrl, isActive: merged.isActive, lastLogin: merged.lastLogin });
   res.json({ ...merged, isActive: !!merged.isActive });
 });
 

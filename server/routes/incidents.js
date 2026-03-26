@@ -51,7 +51,7 @@ router.put('/:id', (req, res) => {
       destIp=@destIp,urls=@urls,fileHashes=@fileHashes,rca=@rca,tags=@tags,
       playbookId=@playbookId,updatedAt=@updatedAt,closedAt=@closedAt
     WHERE id=@id
-  `).run(merged);
+  `).run({ id, incidentNumber: merged.incidentNumber, title: merged.title, description: merged.description, severity: merged.severity, status: merged.status, category: merged.category, source: merged.source, analystId: merged.analystId, affectedAsset: merged.affectedAsset, sourceIp: merged.sourceIp, destIp: merged.destIp, urls: merged.urls, fileHashes: merged.fileHashes, rca: merged.rca, tags: merged.tags, playbookId: merged.playbookId, updatedAt: merged.updatedAt, closedAt: merged.closedAt });
   res.json(merged);
 });
 
@@ -122,7 +122,8 @@ router.put('/checklist/:itemId', (req, res) => {
   const existing = db.prepare(`SELECT * FROM incident_checklists WHERE id = ?`).get(req.params.itemId);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, isDone: req.body.isDone ? 1 : 0 };
-  db.prepare(`UPDATE incident_checklists SET isDone=@isDone,doneBy=@doneBy,doneAt=@doneAt WHERE id=@id`).run(merged);
+  db.prepare(`UPDATE incident_checklists SET isDone=@isDone,doneBy=@doneBy,doneAt=@doneAt WHERE id=@id`)
+    .run({ id: merged.id, isDone: merged.isDone, doneBy: merged.doneBy, doneAt: merged.doneAt });
   res.json({ ...merged, isDone: !!merged.isDone });
 });
 

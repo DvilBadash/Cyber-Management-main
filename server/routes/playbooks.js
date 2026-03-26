@@ -28,7 +28,8 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare(`SELECT * FROM playbooks WHERE id=?`).get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, id, isActive: req.body.isActive !== undefined ? (req.body.isActive ? 1 : 0) : existing.isActive };
-  db.prepare(`UPDATE playbooks SET name=@name,category=@category,description=@description,isActive=@isActive,updatedAt=@updatedAt WHERE id=@id`).run(merged);
+  db.prepare(`UPDATE playbooks SET name=@name,category=@category,description=@description,isActive=@isActive,updatedAt=@updatedAt WHERE id=@id`)
+    .run({ id, name: merged.name, category: merged.category, description: merged.description, isActive: merged.isActive, updatedAt: merged.updatedAt });
   res.json({ ...merged, isActive: !!merged.isActive });
 });
 
@@ -61,7 +62,8 @@ router.put('/items/:itemId', (req, res) => {
   const existing = db.prepare(`SELECT * FROM playbook_items WHERE id=?`).get(id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
   const merged = { ...existing, ...req.body, id };
-  db.prepare(`UPDATE playbook_items SET item=@item,phase=@phase,"order"=@order WHERE id=@id`).run(merged);
+  db.prepare(`UPDATE playbook_items SET item=@item,phase=@phase,"order"=@order WHERE id=@id`)
+    .run({ id, item: merged.item, phase: merged.phase, order: merged.order });
   res.json(merged);
 });
 

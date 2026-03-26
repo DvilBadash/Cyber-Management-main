@@ -57,7 +57,7 @@ router.put('/:id', (req, res) => {
       incidentId=@incidentId,assigneeId=@assigneeId,assignedUserIds=@assignedUserIds,
       dueDate=@dueDate,updatedAt=@updatedAt
     WHERE id=@id
-  `).run(merged);
+  `).run({ id, title: merged.title, description: merged.description, priority: merged.priority, status: merged.status, taskType: merged.taskType, recurrenceFrequency: merged.recurrenceFrequency, incidentId: merged.incidentId, assigneeId: merged.assigneeId, assignedUserIds: merged.assignedUserIds, dueDate: merged.dueDate, updatedAt: merged.updatedAt });
   res.json(deserializeTask(merged));
 });
 

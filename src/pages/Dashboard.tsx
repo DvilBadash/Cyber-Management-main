@@ -102,10 +102,10 @@ export function Dashboard() {
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+        <h1 style={{ fontSize: '39px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
           לוח בקרה
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '15px', margin: '4px 0 0' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '23px', margin: '4px 0 0' }}>
           סקירה כללית של מרכז פעולות הסייבר
         </p>
       </div>
@@ -188,7 +188,7 @@ export function Dashboard() {
                 </ResponsiveContainer>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px', justifyContent: 'center' }}>
                   {severityData.map((d, i) => (
-                    <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '18px', color: 'var(--text-secondary)' }}>
                       <span style={{ width: 9, height: 9, borderRadius: '50%', background: DONUT_COLORS[i], display: 'inline-block' }} />
                       {d.name}: <strong style={{ color: 'var(--text-primary)' }}>{d.value}</strong>
                     </div>
@@ -196,7 +196,7 @@ export function Dashboard() {
                 </div>
               </>
             ) : (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>אין אירועים פתוחים</div>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '21px' }}>אין אירועים פתוחים</div>
             )}
           </div>
         </Card>
@@ -205,20 +205,20 @@ export function Dashboard() {
         <Card
           title="משימות חוזרות TOP 5"
           titleIcon={<RefreshCw size={13} />}
-          actions={<span style={{ fontSize: '11px', color: 'var(--accent-purple)' }}>{recurringTop5.length}/5</span>}
+          actions={<span style={{ fontSize: '17px', color: 'var(--accent-purple)' }}>{recurringTop5.length}/5</span>}
         >
           <div style={{ height: TASK_PANEL_HEIGHT, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {recurringTop5.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', paddingTop: '50px', fontSize: '13px' }}>אין משימות</div>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', paddingTop: '50px', fontSize: '20px' }}>אין משימות</div>
             ) : recurringTop5.map((task, idx) => {
               const priorityColors: Record<TaskPriority, string> = { urgent: 'var(--accent-danger)', high: 'var(--accent-warning)', normal: 'var(--accent-primary)', low: 'var(--accent-success)' };
               const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
               return (
                 <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '8px', background: isOverdue ? 'rgba(255,59,92,0.10)' : 'var(--bg-hover)', borderRight: `3px solid ${isOverdue ? 'var(--accent-danger)' : priorityColors[task.priority]}`, border: isOverdue ? '1px solid rgba(255,59,92,0.35)' : undefined }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', minWidth: '16px' }}>{idx + 1}</span>
+                  <span style={{ fontSize: '17px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', minWidth: '16px' }}>{idx + 1}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: isOverdue ? 'var(--accent-danger)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
-                    <div style={{ fontSize: '12px', color: isOverdue ? 'var(--accent-danger)' : 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <div style={{ fontSize: '21px', fontWeight: 600, color: isOverdue ? 'var(--accent-danger)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
+                    <div style={{ fontSize: '18px', color: isOverdue ? 'var(--accent-danger)' : 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
                       {isOverdue ? '⚠ איחור' : TASK_PRIORITY_LABELS[task.priority]}
                       {task.dueDate && <><Clock size={9} />{format(new Date(task.dueDate), 'dd/MM')}</>}
                     </div>
@@ -234,20 +234,20 @@ export function Dashboard() {
         <Card
           title="משימות חד פעמיות TOP 5"
           titleIcon={<CheckSquare size={13} />}
-          actions={<span style={{ fontSize: '11px', color: 'var(--accent-primary)' }}>{oneTimeTop5.length}/5</span>}
+          actions={<span style={{ fontSize: '17px', color: 'var(--accent-primary)' }}>{oneTimeTop5.length}/5</span>}
         >
           <div style={{ height: TASK_PANEL_HEIGHT, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {oneTimeTop5.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', paddingTop: '50px', fontSize: '13px' }}>אין משימות</div>
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', paddingTop: '50px', fontSize: '20px' }}>אין משימות</div>
             ) : oneTimeTop5.map((task, idx) => {
               const priorityColors: Record<TaskPriority, string> = { urgent: 'var(--accent-danger)', high: 'var(--accent-warning)', normal: 'var(--accent-primary)', low: 'var(--accent-success)' };
               const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
               return (
                 <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '8px', background: isOverdue ? 'rgba(255,59,92,0.10)' : 'var(--bg-hover)', borderRight: `3px solid ${isOverdue ? 'var(--accent-danger)' : priorityColors[task.priority]}`, border: isOverdue ? '1px solid rgba(255,59,92,0.35)' : undefined }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', minWidth: '16px' }}>{idx + 1}</span>
+                  <span style={{ fontSize: '17px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', minWidth: '16px' }}>{idx + 1}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: isOverdue ? 'var(--accent-danger)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
-                    <div style={{ fontSize: '12px', color: isOverdue ? 'var(--accent-danger)' : 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <div style={{ fontSize: '21px', fontWeight: 600, color: isOverdue ? 'var(--accent-danger)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
+                    <div style={{ fontSize: '18px', color: isOverdue ? 'var(--accent-danger)' : 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
                       {isOverdue ? '⚠ איחור' : TASK_PRIORITY_LABELS[task.priority]}
                       {task.dueDate && <><Clock size={9} />{format(new Date(task.dueDate), 'dd/MM')}</>}
                     </div>
@@ -267,8 +267,8 @@ export function Dashboard() {
           <ResponsiveContainer width="100%" height={210}>
             <BarChart data={categoryData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-              <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} width={110} />
+              <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 18 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 18 }} width={110} />
               <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8 }} />
               <Bar dataKey="count" fill="var(--accent-primary)" name="אירועים" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -279,7 +279,7 @@ export function Dashboard() {
         <Card title="אירועים פתוחים אחרונים" titleIcon={<AlertTriangle size={16} />}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {recentIncidents.length === 0 ? (
-              <div style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: '21px', textAlign: 'center', padding: '20px 0' }}>
                 אין אירועים פתוחים
               </div>
             ) : recentIncidents.map((inc) => (
@@ -293,10 +293,10 @@ export function Dashboard() {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                  <div style={{ fontSize: '18px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)', marginBottom: '2px' }}>
                     {inc.incidentNumber}
                   </div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '21px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {inc.title}
                   </div>
                 </div>
@@ -323,9 +323,9 @@ export function Dashboard() {
                   padding: '8px 12px', borderRadius: '8px', background: 'var(--bg-hover)',
                 }}
               >
-                <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{sys.name}</span>
+                <span style={{ fontSize: '21px', color: 'var(--text-primary)' }}>{sys.name}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{sys.category}</span>
+                  <span style={{ fontSize: '18px', color: 'var(--text-muted)' }}>{sys.category}</span>
                   <Badge value={sys.currentStatus} />
                 </div>
               </div>
@@ -340,7 +340,7 @@ export function Dashboard() {
           actions={
             <div style={{ display: 'flex', gap: '6px' }}>
               {RANGE_OPTIONS.map((r) => (
-                <button key={r} onClick={() => setRange(r)} style={{ padding: '3px 8px', fontSize: '12px', borderRadius: '6px', cursor: 'pointer', border: '1px solid var(--border)', background: range === r ? 'var(--accent-primary)' : 'transparent', color: range === r ? '#000' : 'var(--text-secondary)', fontWeight: range === r ? 700 : 400 }}>
+                <button key={r} onClick={() => setRange(r)} style={{ padding: '3px 8px', fontSize: '18px', borderRadius: '6px', cursor: 'pointer', border: '1px solid var(--border)', background: range === r ? 'var(--accent-primary)' : 'transparent', color: range === r ? '#000' : 'var(--text-secondary)', fontWeight: range === r ? 700 : 400 }}>
                   {r}
                 </button>
               ))}
@@ -350,8 +350,8 @@ export function Dashboard() {
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} allowDecimals={false} />
+              <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 18 }} />
+              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 18 }} allowDecimals={false} />
               <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8 }} labelStyle={{ color: 'var(--text-primary)' }} />
               <Line type="monotone" dataKey="count" stroke="var(--accent-primary)" strokeWidth={2} dot={{ fill: 'var(--accent-primary)', r: 3 }} name="אירועים" />
             </LineChart>

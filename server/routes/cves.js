@@ -72,7 +72,7 @@ router.put('/assets/:assetId', (req, res) => {
   const merged = { ...existing, ...req.body, id };
   db.prepare(`
     UPDATE cve_assets SET assetName=@assetName,assetType=@assetType,status=@status,owner=@owner,dueDate=@dueDate,notes=@notes WHERE id=@id
-  `).run(merged);
+  `).run({ id, assetName: merged.assetName, assetType: merged.assetType, status: merged.status, owner: merged.owner, dueDate: merged.dueDate, notes: merged.notes });
   res.json(merged);
 });
 
