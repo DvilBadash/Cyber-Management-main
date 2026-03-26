@@ -29,7 +29,7 @@ const INPUT_STYLE = {
 };
 
 export function SpecialEvents() {
-  const { currentUser } = useAppStore();
+  const { currentUser, addToast } = useAppStore();
   const [events, setEvents] = useState<SpecialEvent[]>([]);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [systemUsers, setSystemUsers] = useState<{ id: number; fullName: string; email: string }[]>([]);
@@ -144,13 +144,14 @@ export function SpecialEvents() {
   const handleToggle = async (item: EventChecklistItem) => {
     const isDone = !item.isDone;
     const now = new Date().toISOString();
+    // Optimistic update — UI responds immediately
+    setChecklist(prev => prev.map(c => c.id === item.id
+      ? { ...c, isDone, doneBy: isDone ? (currentUser?.fullName || 'מנהל') : undefined, doneAt: isDone ? now : undefined }
+      : c));
     await eventsApi.updateChecklistItem(item.id!, {
       isDone, doneBy: isDone ? (currentUser?.fullName || 'מנהל') : undefined,
       doneAt: isDone ? now : undefined,
     });
-    setChecklist(prev => prev.map(c => c.id === item.id
-      ? { ...c, isDone, doneBy: isDone ? (currentUser?.fullName || 'מנהל') : undefined, doneAt: isDone ? now : undefined }
-      : c));
   };
 
   // ── Save edit ──────────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ export function SpecialEvents() {
     setEvents(prev => prev.map(e => e.id === selected.id ? { ...e, ...editDraft } : e));
     setSelected(prev => prev ? { ...prev, ...editDraft } : null);
     setEditMode(false);
+    addToast({ type: 'success', message: 'אירוע עודכן בהצלחה' });
   };
 
   // ── Status change ──────────────────────────────────────────────────────────

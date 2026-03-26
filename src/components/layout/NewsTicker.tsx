@@ -44,8 +44,8 @@ export function NewsTicker() {
           background: 'var(--accent-primary)',
           color: '#000',
           fontWeight: 700,
-          fontSize: '33px',
-          padding: '0 24px',
+          fontSize: '26px',
+          padding: '0 19px',
           height: '100%',
           display: 'flex',
           alignItems: 'center',
@@ -57,7 +57,7 @@ export function NewsTicker() {
         📡 עדכונים
       </div>
       <div style={{ overflow: 'hidden', flex: 1 }} ref={tickerRef}>
-        <div className="ticker-animation" style={{ direction: 'rtl', fontSize: '36px', color: 'var(--text-secondary)' }}>
+        <div className="ticker-animation" style={{ direction: 'rtl', fontSize: '29px', color: 'var(--text-secondary)' }}>
           {combined.map((msg, i) => (
             <span key={msg.id}>
               {i > 0 && (
