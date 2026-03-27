@@ -4,7 +4,7 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
-import { handoverApi, analystsApi } from '../api/client';
+import { handoverApi, usersApi } from '../api/client';
 import type { ShiftHandover as ShiftHandoverType, HandoverItem, Analyst } from '../types';
 import { format } from 'date-fns';
 
@@ -21,7 +21,13 @@ export function ShiftHandover() {
 
   useEffect(() => {
     handoverApi.getAll().then(setHandovers);
-    analystsApi.getAll().then(setAnalysts);
+    usersApi.getAll().then(users =>
+      setAnalysts(
+        users
+          .filter(u => u.isActive)
+          .map(u => ({ id: u.id, name: u.fullName, role: u.role, email: u.email, status: 'active' as const }))
+      )
+    );
   }, []);
 
   const handleCreate = async () => {

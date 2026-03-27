@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "server": "node server/server.js",
     "server:dev": "node --watch server/server.js",
-    "start": "npm run server"
+    "start": "npm run server",
+    "deploy": "node deploy.cjs",
+    "deploy:archive": "node deploy.cjs archive",
+    "deploy:status": "node deploy.cjs status"
   },
   "dependencies": {
     "@fontsource/heebo": "^5.2.8",

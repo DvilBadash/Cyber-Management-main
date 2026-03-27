@@ -1,18 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Download, AlertTriangle, CheckSquare, ShieldAlert, Monitor, Star, Activity, FileBarChart2 } from 'lucide-react';
+import { Download, AlertTriangle, CheckSquare, ShieldAlert, Monitor, Star, Activity, FileBarChart2, Package } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useIncidentsStore } from '../store/incidentsStore';
 import { useTasksStore } from '../store/tasksStore';
 import { useSystemsStore } from '../store/systemsStore';
-import { eventsApi, usersApi } from '../api/client';
-import type { SpecialEvent, ActivityLog, User } from '../types';
+import { eventsApi, usersApi, inventoryApi } from '../api/client';
+import type { SpecialEvent, ActivityLog, User, Loan } from '../types';
 import {
   SEVERITY_LABELS, INCIDENT_STATUS_LABELS, TASK_STATUS_LABELS,
   TASK_PRIORITY_LABELS, SPECIAL_EVENT_TYPE_LABELS,
+  LOAN_STATUS_LABELS, INVENTORY_TYPE_LABELS,
 } from '../types';
 
-type ReportType = 'incidents' | 'tasks' | 'cves' | 'systems' | 'events' | 'activity';
+type ReportType = 'incidents' | 'tasks' | 'cves' | 'systems' | 'events' | 'activity' | 'loans';
 
 const REPORT_TYPES: { id: ReportType; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
   { id: 'incidents', label: 'דוח אירועים', icon: AlertTriangle },
@@ -21,6 +22,7 @@ const REPORT_TYPES: { id: ReportType; label: string; icon: React.ComponentType<{
   { id: 'systems', label: 'דוח מערכות', icon: Monitor },
   { id: 'events', label: 'אירועים מיוחדים', icon: Star },
   { id: 'activity', label: 'לוג פעולות', icon: Activity },
+  { id: 'loans', label: 'היסטוריית השאלות', icon: Package },
 ];
 
 function exportCSV(filename: string, rows: Record<string, string | number | boolean | undefined>[]) {
@@ -35,6 +37,161 @@ function exportCSV(filename: string, rows: Record<string, string | number | bool
   const a = document.createElement('a');
   a.href = url;
   a.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── HTML Export ──────────────────────────────────────────────────────────────
+
+type HtmlCell = string | { text: string; color?: string; badge?: boolean; mono?: boolean };
+
+function buildHtmlDoc(
+  title: string,
+  subtitle: string,
+  generated: string,
+  stats: { label: string; value: number; color: string }[],
+  headers: string[],
+  rows: HtmlCell[][],
+): string {
+  const statsHtml = stats.map(s => `
+    <div class="kpi">
+      <div class="kpi-val" style="color:${s.color}">${s.value}</div>
+      <div class="kpi-label">${s.label}</div>
+    </div>`).join('');
+
+  const theadHtml = headers.map(h => `<th>${h}</th>`).join('');
+
+  const tbodyHtml = rows.map((row, ri) => {
+    const cells = row.map(cell => {
+      if (typeof cell === 'string') return `<td>${cell}</td>`;
+      const style = cell.color ? `color:${cell.color}` : '';
+      const cls   = [cell.badge ? 'badge' : '', cell.mono ? 'mono' : ''].filter(Boolean).join(' ');
+      const inner = cell.badge
+        ? `<span class="badge-pill" style="color:${cell.color};border-color:${cell.color}20;background:${cell.color}18">${cell.text}</span>`
+        : `<span class="${cls}" style="${style}">${cell.text}</span>`;
+      return `<td>${inner}</td>`;
+    }).join('');
+    return `<tr class="${ri % 2 === 0 ? 'even' : 'odd'}">${cells}</tr>`;
+  }).join('');
+
+  const emptyRow = rows.length === 0
+    ? `<tr><td colspan="${headers.length}" class="empty">No records match the current filters</td></tr>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${title}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+       background:#0d1117;color:#e6edf3;direction:rtl;font-size:13px;line-height:1.5}
+  .page{max-width:1100px;margin:0 auto;padding:32px 24px}
+  /* Header */
+  .report-header{background:linear-gradient(135deg,#161b22,#1a2332);border:1px solid #30363d;
+    border-radius:12px;padding:28px 32px;margin-bottom:24px;
+    display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px}
+  .report-title{font-size:22px;font-weight:800;color:#e6edf3;margin-bottom:4px}
+  .report-sub{font-size:13px;color:#8b949e}
+  .report-meta{text-align:left;font-size:12px;color:#8b949e;line-height:1.8}
+  .report-meta strong{color:#58a6ff}
+  .logo{font-size:11px;font-weight:700;letter-spacing:1px;color:#58a6ff;
+        background:rgba(88,166,255,0.1);border:1px solid rgba(88,166,255,0.3);
+        border-radius:6px;padding:4px 10px;display:inline-block;margin-bottom:8px}
+  /* KPI */
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+  .kpi{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px 20px;text-align:center}
+  .kpi-val{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:4px}
+  .kpi-label{font-size:11px;color:#8b949e;font-weight:500}
+  /* Table */
+  .table-wrap{background:#161b22;border:1px solid #30363d;border-radius:12px;overflow:hidden}
+  .table-header{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;border-bottom:1px solid #30363d}
+  .table-header h3{font-size:13px;font-weight:700;color:#e6edf3}
+  .record-count{font-size:12px;color:#8b949e}
+  .record-count strong{color:#58a6ff}
+  table{width:100%;border-collapse:collapse}
+  th{padding:10px 14px;text-align:right;font-size:11px;color:#8b949e;font-weight:600;
+     background:#0d1117;border-bottom:1px solid #30363d;white-space:nowrap}
+  td{padding:9px 14px;font-size:12px;color:#e6edf3;border-bottom:1px solid #21262d;
+     vertical-align:middle}
+  tr.even td{background:transparent}
+  tr.odd td{background:rgba(255,255,255,0.015)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(88,166,255,0.04)}
+  .mono{font-family:'SF Mono',Consolas,monospace;font-size:11px;color:#8b949e}
+  .badge-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;
+    font-weight:600;border:1px solid;white-space:nowrap}
+  .empty{text-align:center;padding:40px;color:#8b949e;font-style:italic}
+  /* Print button */
+  .actions{text-align:center;margin-top:24px}
+  .btn-print{background:#238636;color:#fff;border:none;border-radius:8px;
+    padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-print:hover{background:#2ea043}
+  /* Footer */
+  .footer{margin-top:20px;text-align:center;font-size:11px;color:#484f58}
+  @media print{
+    body{background:#fff;color:#000}
+    .page{padding:0}
+    .actions{display:none}
+    .report-header{background:#f6f8fa;border-color:#d0d7de;color:#24292f}
+    .report-title,.report-meta strong,.kpi-val{color:inherit}
+    .report-sub,.report-meta,.kpi-label,.record-count{color:#57606a}
+    .kpi{background:#f6f8fa;border-color:#d0d7de}
+    .table-wrap{background:#fff;border-color:#d0d7de}
+    th{background:#f6f8fa;color:#57606a;border-color:#d0d7de}
+    td{border-color:#d0d7de;color:#24292f}
+    tr.odd td{background:#f6f8fa}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="report-header">
+    <div>
+      <div class="logo">SOC CYBER MANAGEMENT</div>
+      <div class="report-title">${title}</div>
+      <div class="report-sub">${subtitle}</div>
+    </div>
+    <div class="report-meta">
+      <div>Generated: <strong>${generated}</strong></div>
+      <div>Records: <strong>${rows.length}</strong></div>
+    </div>
+  </div>
+
+  <div class="kpi-row">${statsHtml}</div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <h3>Report Data</h3>
+      <span class="record-count"><strong>${rows.length}</strong> records</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>${theadHtml}</tr></thead>
+        <tbody>${tbodyHtml}${emptyRow}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-print" onclick="window.print()">🖨 Print / Save as PDF</button>
+  </div>
+
+  <div class="footer">Cyber Management SOC System &mdash; ${generated}</div>
+</div>
+</body>
+</html>`;
+}
+
+function downloadHTML(filename: string, html: string) {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${filename}-${new Date().toISOString().split('T')[0]}.html`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -82,6 +239,7 @@ export function Reports() {
   const [specialEvents, setSpecialEvents] = useState<SpecialEvent[]>([]);
   const [activityLogs, setActivityLogs] = useState<(ActivityLog & { username?: string })[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
 
   const today = new Date().toISOString().split('T')[0];
   const d30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -92,10 +250,12 @@ export function Reports() {
   const [sysF, setSysF] = useState({ status: '', category: '' });
   const [evtF, setEvtF] = useState({ dateFrom: '', dateTo: '', type: '', status: '' });
   const [actF, setActF] = useState({ dateFrom: d30, dateTo: today, module: '', userId: '' });
+  const [loanF, setLoanF] = useState({ dateFrom: '', dateTo: '', status: '', itemType: '', borrower: '' });
 
   useEffect(() => {
     eventsApi.getAll().then(setSpecialEvents);
     usersApi.getAll().then(setUsers);
+    inventoryApi.getLoans().then(setLoans);
   }, []);
 
   useEffect(() => {
@@ -144,11 +304,18 @@ export function Reports() {
     (!actF.userId || String(l.userId) === actF.userId)
   ), [activityLogs, actF]);
 
+  const fLoan = useMemo(() => loans.filter(l =>
+    inRange(l.loanedAt, loanF.dateFrom, loanF.dateTo) &&
+    (!loanF.status || l.status === loanF.status) &&
+    (!loanF.itemType || l.itemType === loanF.itemType) &&
+    (!loanF.borrower || l.borrowerName.toLowerCase().includes(loanF.borrower.toLowerCase()))
+  ), [loans, loanF]);
+
   const actModules = useMemo(() => [...new Set(activityLogs.map(l => l.module))].sort(), [activityLogs]);
   const incCategories = useMemo(() => [...new Set(incidents.map(i => i.category))].sort(), [incidents]);
   const sysCats = useMemo(() => [...new Set(systems.map(s => s.category))].sort(), [systems]);
 
-  const resultCount = { incidents: fInc.length, tasks: fTask.length, cves: fCve.length, systems: fSys.length, events: fEvt.length, activity: fAct.length }[reportType];
+  const resultCount = { incidents: fInc.length, tasks: fTask.length, cves: fCve.length, systems: fSys.length, events: fEvt.length, activity: fAct.length, loans: fLoan.length }[reportType];
 
   const handleExport = () => {
     switch (reportType) {
@@ -192,6 +359,148 @@ export function Reports() {
           'משתמש': l.username || '', 'פעולה': l.action, 'מודול': l.module,
           'פרטים': l.details || '', 'זמן': l.timestamp.slice(0, 19).replace('T', ' '),
         })));
+        break;
+      case 'loans':
+        exportCSV('loans-history', fLoan.map(l => ({
+          'פריט': l.itemName || '', 'סוג': l.itemType ? (INVENTORY_TYPE_LABELS as Record<string,string>)[l.itemType] || l.itemType : '',
+          'מספר סידורי': l.itemSerial || '', 'שואל': l.borrowerName,
+          'ת.ז.': l.borrowerId || '', 'מחלקה': (l as any).department || '',
+          'מטרה': l.purpose || '', 'תאריך השאלה': l.loanedAt.slice(0, 10),
+          'יעד החזרה': l.expectedReturn || '', 'הוחזר': l.returnedAt?.slice(0, 10) || '',
+          'סטטוס': LOAN_STATUS_LABELS[l.status],
+        })));
+        break;
+    }
+  };
+
+  const handleExportHTML = () => {
+    const gen  = new Date().toLocaleString('he-IL');
+    const stat = summaryStats;
+
+    const SEV_COLOR: Record<string, string> = {
+      critical: '#f85149', high: '#d29922', medium: '#f59e0b', low: '#3fb950', info: '#8b949e',
+    };
+    const STATUS_COLOR: Record<string, string> = {
+      online: '#3fb950', degraded: '#d29922', offline: '#f85149',
+      open: '#d29922', in_progress: '#58a6ff', pending: '#8b949e',
+      closed: '#3fb950', false_positive: '#484f58',
+      todo: '#8b949e', review: '#a371f7', done: '#3fb950',
+      active: '#3fb950', returned: '#8b949e', overdue: '#f85149',
+      planned: '#d29922', completed: '#8b949e', cancelled: '#f85149',
+    };
+
+    switch (reportType) {
+      case 'incidents':
+        downloadHTML('incidents', buildHtmlDoc(
+          'דוח אירועים', `${fInc.length} אירועים בטווח ${incF.dateFrom || '—'} עד ${incF.dateTo || '—'}`, gen, stat,
+          ['מספר', 'כותרת', 'חומרה', 'סטטוס', 'קטגוריה', 'מקור', 'נפתח', 'נסגר'],
+          fInc.map(i => [
+            { text: i.incidentNumber, mono: true },
+            i.title,
+            { text: SEVERITY_LABELS[i.severity], color: SEV_COLOR[i.severity], badge: true },
+            { text: INCIDENT_STATUS_LABELS[i.status], color: STATUS_COLOR[i.status], badge: true },
+            i.category,
+            i.source || '—',
+            i.createdAt.slice(0, 10),
+            i.closedAt?.slice(0, 10) || '—',
+          ])
+        ));
+        break;
+
+      case 'tasks':
+        downloadHTML('tasks', buildHtmlDoc(
+          'דוח משימות', `${fTask.length} משימות`, gen, stat,
+          ['כותרת', 'עדיפות', 'סטטוס', 'תאריך יצירה', 'תאריך יעד'],
+          fTask.map(t => [
+            t.title,
+            { text: TASK_PRIORITY_LABELS[t.priority], color: t.priority === 'urgent' ? '#f85149' : t.priority === 'high' ? '#d29922' : '#8b949e', badge: true },
+            { text: TASK_STATUS_LABELS[t.status], color: STATUS_COLOR[t.status] || '#8b949e', badge: true },
+            t.createdAt.slice(0, 10),
+            t.dueDate || '—',
+          ])
+        ));
+        break;
+
+      case 'cves':
+        downloadHTML('cves', buildHtmlDoc(
+          'דוח CVEs', `${fCve.length} פגיעויות`, gen, stat,
+          ['CVE ID', 'CVSS', 'Exploit', 'נגלה', 'דרך טיפול', 'תיאור'],
+          fCve.map(c => {
+            const score = c.cvssScore ?? 0;
+            const scoreColor = score >= 9 ? '#f85149' : score >= 7 ? '#d29922' : score >= 4 ? '#f59e0b' : '#3fb950';
+            return [
+              { text: c.cveId, mono: true, color: '#58a6ff' },
+              { text: c.cvssScore?.toFixed(1) ?? '—', color: scoreColor, badge: true },
+              { text: c.exploitAvailable ? '⚠ Yes' : '✓ No', color: c.exploitAvailable ? '#f85149' : '#3fb950', badge: true },
+              c.discoveredAt.slice(0, 10),
+              c.treatmentMethod || '—',
+              c.description,
+            ];
+          })
+        ));
+        break;
+
+      case 'systems':
+        downloadHTML('systems', buildHtmlDoc(
+          'דוח מערכות', `${fSys.length} מערכות`, gen, stat,
+          ['שם מערכת', 'קטגוריה', 'סטטוס', 'בדיקה אחרונה', 'בעלים', 'תדירות'],
+          fSys.map(s => [
+            s.name,
+            s.category,
+            { text: s.currentStatus === 'online' ? 'תקין' : s.currentStatus === 'offline' ? 'לא זמין' : 'מדורדר', color: STATUS_COLOR[s.currentStatus], badge: true },
+            s.lastChecked?.slice(0, 10) || '—',
+            s.owner || '—',
+            s.checkFrequency === 'hourly' ? 'שעתי' : s.checkFrequency === 'daily' ? 'יומי' : 'שבועי',
+          ])
+        ));
+        break;
+
+      case 'events':
+        downloadHTML('events', buildHtmlDoc(
+          'אירועים מיוחדים', `${fEvt.length} אירועים`, gen, stat,
+          ['שם', 'סוג', 'סטטוס', 'תחילה', 'סיום', 'תיאור'],
+          fEvt.map(e => [
+            e.name,
+            SPECIAL_EVENT_TYPE_LABELS[e.type],
+            { text: e.status === 'planned' ? 'מתוכנן' : e.status === 'active' ? 'פעיל' : e.status === 'completed' ? 'הושלם' : 'בוטל', color: STATUS_COLOR[e.status], badge: true },
+            e.startDate,
+            e.endDate || '—',
+            e.description || '—',
+          ])
+        ));
+        break;
+
+      case 'activity':
+        downloadHTML('activity', buildHtmlDoc(
+          'לוג פעולות', `${fAct.length} רשומות`, gen, stat,
+          ['משתמש', 'פעולה', 'מודול', 'פרטים', 'זמן'],
+          fAct.map(l => [
+            l.username || '—',
+            l.action,
+            { text: l.module, color: '#58a6ff' },
+            l.details || '—',
+            { text: l.timestamp.slice(0, 19).replace('T', ' '), mono: true },
+          ])
+        ));
+        break;
+
+      case 'loans':
+        downloadHTML('loans-history', buildHtmlDoc(
+          'היסטוריית השאלות', `${fLoan.length} רשומות`, gen, stat,
+          ['פריט', 'סוג', 'מ"ס', 'שואל', 'ת.ז.', 'מטרה', 'תאריך השאלה', 'יעד החזרה', 'הוחזר', 'סטטוס'],
+          fLoan.map(l => [
+            l.itemName || '—',
+            l.itemType ? (INVENTORY_TYPE_LABELS as Record<string,string>)[l.itemType] || l.itemType : '—',
+            { text: l.itemSerial || '—', mono: true },
+            l.borrowerName,
+            l.borrowerId || '—',
+            l.purpose || '—',
+            l.loanedAt.slice(0, 10),
+            l.expectedReturn || '—',
+            l.returnedAt?.slice(0, 10) || '—',
+            { text: LOAN_STATUS_LABELS[l.status], color: STATUS_COLOR[l.status], badge: true },
+          ])
+        ));
         break;
     }
   };
@@ -244,8 +553,19 @@ export function Reports() {
         { label: 'הושלמו', value: fEvt.filter(e => e.status === 'completed').length, color: 'var(--text-secondary)' },
       ];
     }
+    if (reportType === 'activity') {
+      return [{ label: 'רשומות', value: fAct.length, color: 'var(--accent-primary)' }];
+    }
+    if (reportType === 'loans') {
+      return [
+        { label: 'סה"כ', value: fLoan.length, color: 'var(--accent-primary)' },
+        { label: 'בהשאלה', value: fLoan.filter(l => l.status === 'active').length, color: 'var(--accent-warning)' },
+        { label: 'באיחור', value: fLoan.filter(l => l.status === 'overdue').length, color: 'var(--accent-danger)' },
+        { label: 'הוחזרו', value: fLoan.filter(l => l.status === 'returned').length, color: 'var(--accent-success)' },
+      ];
+    }
     return [{ label: 'רשומות', value: fAct.length, color: 'var(--accent-primary)' }];
-  }, [reportType, fInc, fTask, fCve, fSys, fEvt, fAct]);
+  }, [reportType, fInc, fTask, fCve, fSys, fEvt, fAct, fLoan]);
 
   return (
     <div>
@@ -447,6 +767,38 @@ export function Reports() {
                   </div>
                 </>)}
 
+                {/* ── Loans filters ── */}
+                {reportType === 'loans' && (<>
+                  <div>
+                    <label style={labelSt}>מתאריך השאלה</label>
+                    <input type="date" style={inputSt} value={loanF.dateFrom} onChange={e => setLoanF(f => ({ ...f, dateFrom: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={labelSt}>עד תאריך</label>
+                    <input type="date" style={inputSt} value={loanF.dateTo} onChange={e => setLoanF(f => ({ ...f, dateTo: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={labelSt}>סטטוס</label>
+                    <select style={inputSt} value={loanF.status} onChange={e => setLoanF(f => ({ ...f, status: e.target.value }))}>
+                      <option value="">הכל</option>
+                      <option value="active">בהשאלה</option>
+                      <option value="overdue">באיחור</option>
+                      <option value="returned">הוחזר</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelSt}>סוג ציוד</label>
+                    <select style={inputSt} value={loanF.itemType} onChange={e => setLoanF(f => ({ ...f, itemType: e.target.value }))}>
+                      <option value="">הכל</option>
+                      {Object.entries(INVENTORY_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelSt}>שם שואל</label>
+                    <input style={{ ...inputSt, width: '140px' }} value={loanF.borrower} placeholder="חיפוש..." onChange={e => setLoanF(f => ({ ...f, borrower: e.target.value }))} />
+                  </div>
+                </>)}
+
                 {/* ── Activity filters ── */}
                 {reportType === 'activity' && (<>
                   <div>
@@ -482,15 +834,26 @@ export function Reports() {
                 <strong style={{ color: 'var(--accent-primary)' }}>{resultCount}</strong>{' '}
                 רשומות
               </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<Download size={13} />}
-                onClick={handleExport}
-                disabled={!resultCount}
-              >
-                ייצוא CSV
-              </Button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Download size={13} />}
+                  onClick={handleExport}
+                  disabled={!resultCount}
+                >
+                  ייצוא CSV
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Download size={13} />}
+                  onClick={handleExportHTML}
+                  disabled={!resultCount}
+                >
+                  ייצוא HTML
+                </Button>
+              </div>
             </div>
 
             {/* Results table */}
@@ -626,6 +989,40 @@ export function Reports() {
                         <td style={{ ...tdSt, maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description || '—'}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              )}
+
+              {reportType === 'loans' && (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['פריט', 'סוג', 'מ"ס', 'שואל', 'ת.ז.', 'מטרה', 'תאריך השאלה', 'יעד החזרה', 'הוחזר בפועל', 'סטטוס'].map(h => <th key={h} style={thSt}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fLoan.map(l => {
+                      const statusColor = l.status === 'returned' ? 'var(--accent-success)' : l.status === 'overdue' ? 'var(--accent-danger)' : 'var(--accent-warning)';
+                      const isOverdue = l.status === 'overdue' || (l.status === 'active' && l.expectedReturn && l.expectedReturn < new Date().toISOString().split('T')[0]);
+                      return (
+                        <tr key={l.id} className="hover:bg-[var(--bg-hover)]">
+                          <td style={{ ...tdSt, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{l.itemName || '—'}</td>
+                          <td style={tdSt}>{l.itemType ? (INVENTORY_TYPE_LABELS as Record<string,string>)[l.itemType] || l.itemType : '—'}</td>
+                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{l.itemSerial || '—'}</td>
+                          <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>{l.borrowerName}</td>
+                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', color: 'var(--text-muted)' }}>{l.borrowerId || '—'}</td>
+                          <td style={{ ...tdSt, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.purpose || '—'}</td>
+                          <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>{l.loanedAt.slice(0, 10)}</td>
+                          <td style={{ ...tdSt, whiteSpace: 'nowrap', color: isOverdue ? 'var(--accent-danger)' : 'var(--text-primary)' }}>{l.expectedReturn || '—'}</td>
+                          <td style={{ ...tdSt, whiteSpace: 'nowrap', color: l.returnedAt ? 'var(--accent-success)' : 'var(--text-muted)' }}>{l.returnedAt?.slice(0, 10) || '—'}</td>
+                          <td style={tdSt}>
+                            <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: `${statusColor}20`, color: statusColor }}>
+                              {LOAN_STATUS_LABELS[l.status]}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}

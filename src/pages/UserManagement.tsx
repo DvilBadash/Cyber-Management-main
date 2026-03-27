@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Lock, Shield, Pencil, Check } from 'lucide-react';
+import { Plus, Search, Lock, Shield, Pencil, Check, Trash2 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -29,6 +29,9 @@ export function UserManagement() {
   const [confirmPass, setConfirmPass] = useState('');
   const [passError, setPassError] = useState('');
   const [passSaved, setPassSaved] = useState(false);
+
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     usersApi.getAll().then(setUsers);
@@ -105,6 +108,15 @@ export function UserManagement() {
       setNewPass('');
       setConfirmPass('');
     }, 1500);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selected?.id || selected.username === 'socadmin') return;
+    await usersApi.delete(selected.id);
+    await logActivity('מחיקת משתמש', 'ניהול משתמשים', `משתמש ${selected.username} נמחק לצמיתות`);
+    setUsers(prev => prev.filter(u => u.id !== selected.id));
+    setShowDeleteConfirm(false);
+    setSelected(null);
   };
 
   const openChangePass = (user: User) => {
@@ -305,10 +317,34 @@ export function UserManagement() {
                 שנה סיסמה
               </Button>
               {selected.username !== 'socadmin' && (
-                <Button variant={selected.isActive ? 'danger' : 'success'} onClick={() => handleToggleActive(selected)}>
-                  {selected.isActive ? 'השבת משתמש' : 'הפעל משתמש'}
-                </Button>
+                <>
+                  <Button variant={selected.isActive ? 'danger' : 'success'} onClick={() => handleToggleActive(selected)}>
+                    {selected.isActive ? 'השבת משתמש' : 'הפעל משתמש'}
+                  </Button>
+                  <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => setShowDeleteConfirm(true)}>
+                    מחק משתמש לתמיד
+                  </Button>
+                </>
               )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="מחיקת משתמש לצמיתות" size="sm">
+        {selected && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ background: 'rgba(255,59,92,0.1)', border: '1px solid rgba(255,59,92,0.3)', borderRadius: '10px', padding: '14px 16px', fontSize: '13px', color: 'var(--accent-danger)', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <Trash2 size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: '4px' }}>פעולה בלתי הפיכה</div>
+                <div>המשתמש <strong>{selected.fullName}</strong> (@{selected.username}) יימחק לצמיתות ממערכת הנתונים. לא ניתן לשחזר פעולה זו.</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>ביטול</Button>
+              <Button variant="danger" icon={<Trash2 size={14} />} onClick={handleDeleteUser}>אישור מחיקה</Button>
             </div>
           </div>
         )}

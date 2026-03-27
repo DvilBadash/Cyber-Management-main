@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { motion } from 'framer-motion';
 import {
@@ -43,15 +43,49 @@ const stagger = {
 
 const TASK_PANEL_HEIGHT = 300;
 
+const REFRESH_INTERVAL = 60_000; // 60 seconds
+
 export function Dashboard() {
   const { incidents } = useIncidentsStore();
   const { tasks } = useTasksStore();
   const { systems } = useSystemsStore();
+  const loadIncidents = useIncidentsStore(s => s.loadIncidents);
+  const loadTasks     = useTasksStore(s => s.loadTasks);
+  const loadSystems   = useSystemsStore(s => s.loadSystems);
   const [range, setRange] = useState<Range>('7 ימים');
   const [analysts, setAnalysts] = useState<any[]>([]);
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL / 1000);
+  const [refreshing, setRefreshing] = useState(false);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadIncidents(),
+      loadTasks(),
+      loadSystems(),
+      analystsApi.getAll().then(setAnalysts),
+    ]);
+    setRefreshing(false);
+    setCountdown(REFRESH_INTERVAL / 1000);
+  }, [loadIncidents, loadTasks, loadSystems]);
 
   useEffect(() => {
     analystsApi.getAll().then(setAnalysts);
+  }, []);
+
+  // Auto-refresh every 60s
+  useEffect(() => {
+    const interval = setInterval(refresh, REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  // Countdown ticker
+  useEffect(() => {
+    countdownRef.current = setInterval(() => {
+      setCountdown(c => (c <= 1 ? REFRESH_INTERVAL / 1000 : c - 1));
+    }, 1000);
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
   }, []);
 
   const incidentStats = useIncidentsStore(useShallow((s) => s.getStats()));
@@ -101,14 +135,37 @@ export function Dashboard() {
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '39px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-          לוח בקרה
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '23px', margin: '4px 0 0' }}>
-          סקירה כללית של מרכז פעולות הסייבר
-        </p>
+      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: '39px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+            לוח בקרה
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '23px', margin: '4px 0 0' }}>
+            סקירה כללית של מרכז פעולות הסייבר
+          </p>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          title="רענן נתונים"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '8px 14px', borderRadius: '8px', cursor: refreshing ? 'not-allowed' : 'pointer',
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            color: 'var(--text-secondary)', fontSize: '12px', fontFamily: 'inherit',
+            opacity: refreshing ? 0.6 : 1, transition: 'all 0.15s',
+          }}
+        >
+          <RefreshCw
+            size={14}
+            style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}
+          />
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', minWidth: '28px', textAlign: 'center' }}>
+            {refreshing ? '...' : `${countdown}s`}
+          </span>
+        </button>
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
 
       {/* KPIs */}
       <motion.div

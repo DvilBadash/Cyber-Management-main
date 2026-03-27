@@ -3,7 +3,7 @@ import { ChevronRight, ChevronLeft, Users, Clock } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
-import { analystsApi, settingsApi } from '../api/client';
+import { analystsApi, settingsApi, usersApi } from '../api/client';
 import { useAppStore } from '../store/appStore';
 import type { Analyst, Shift, ShiftType } from '../types';
 import { format, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns';
@@ -69,7 +69,13 @@ export function WorkSchedule() {
   };
 
   useEffect(() => {
-    analystsApi.getAll().then(setAnalysts);
+    usersApi.getAll().then(users =>
+      setAnalysts(
+        users
+          .filter(u => u.isActive)
+          .map(u => ({ id: u.id, name: u.fullName, role: u.role, email: u.email, status: 'active' as const }))
+      )
+    );
     loadDayModes();
   }, []);
 
