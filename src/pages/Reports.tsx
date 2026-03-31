@@ -554,19 +554,79 @@ export function Reports() {
         break;
       case 'shifts': {
         const { from, to } = weekBounds;
-        downloadHTML('shifts-weekly', buildHtmlDoc(
-          'דוח משמרות שבועי', `שבוע ${from} — ${to}`, gen, stat,
-          ['תאריך', 'יום', 'משמרת', 'אנליסט', 'שעת התחלה', 'שעת סיום', 'הערות'],
-          fShift.map(s => [
-            { text: s.date, mono: true },
-            DAY_NAMES[new Date(s.date + 'T12:00:00').getDay()],
-            { text: SHIFT_TYPE_LABELS[s.shiftType] || s.shiftType, color: SHIFT_TYPE_COLOR[s.shiftType], badge: true },
-            analystMap[s.analystId] || String(s.analystId),
-            { text: s.startTime || '—', mono: true },
-            { text: s.endTime || '—', mono: true },
-            s.notes || '—',
-          ])
-        ));
+        const sun2 = new Date(from + 'T12:00:00');
+        const weekDaysHtml = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(sun2); d.setDate(sun2.getDate() + i);
+          return d.toISOString().split('T')[0];
+        });
+        const gridHtml: Record<string, Record<string, string[]>> = { morning: {}, afternoon: {}, night: {} };
+        fShift.forEach(s => {
+          if (!gridHtml[s.shiftType][s.date]) gridHtml[s.shiftType][s.date] = [];
+          gridHtml[s.shiftType][s.date].push(analystMap[s.analystId] || `#${s.analystId}`);
+        });
+        const SHIFT_HOURS_H: Record<string, string> = { morning: '07:00–15:00', afternoon: '15:00–23:00', night: '23:00–07:00' };
+        const SHIFT_COLOR_H: Record<string, string> = { morning: '#f59e0b', afternoon: '#58a6ff', night: '#a371f7' };
+        const headCols = weekDaysHtml.map(date => {
+          const dn = DAY_NAMES[new Date(date + 'T12:00:00').getDay()];
+          return `<th style="padding:10px 14px;text-align:center;font-size:11px;color:#8b949e;font-weight:600;background:#0d1117;border-bottom:1px solid #30363d;min-width:110px"><div style="font-weight:700;color:#e6edf3">${dn}</div><div style="font-size:10px;margin-top:2px">${date.slice(5)}</div></th>`;
+        }).join('');
+        const bodyRows = (['morning', 'afternoon', 'night'] as const).map(st => {
+          const color = SHIFT_COLOR_H[st];
+          const firstCell = `<td style="padding:10px 14px;font-size:12px;border-bottom:1px solid #21262d;background:${color}18;border-left:3px solid ${color};white-space:nowrap"><span style="font-weight:700;color:${color}">${SHIFT_TYPE_LABELS[st]}</span><br/><span style="font-size:10px;color:#8b949e;font-family:monospace">${SHIFT_HOURS_H[st]}</span></td>`;
+          const dayCells = weekDaysHtml.map(date => {
+            const names = gridHtml[st][date] || [];
+            const inner = names.length === 0
+              ? '<span style="color:#484f58;font-size:11px">—</span>'
+              : names.map(n => `<div style="font-size:12px;font-weight:600;color:#e6edf3;background:${color}22;border-radius:6px;padding:2px 8px;margin-bottom:3px">${n}</div>`).join('');
+            return `<td style="padding:10px 8px;text-align:center;border-bottom:1px solid #21262d;vertical-align:middle;background:${names.length ? color + '08' : 'transparent'}">${inner}</td>`;
+          }).join('');
+          return `<tr>${firstCell}${dayCells}</tr>`;
+        }).join('');
+        const statsHtml2 = stat.map(s => `<div class="kpi"><div class="kpi-val" style="color:${s.color}">${s.value}</div><div class="kpi-label">${s.label}</div></div>`).join('');
+        const shiftGridHtml = `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"/><title>דוח משמרות שבועי</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;direction:rtl;font-size:13px}
+  .page{max-width:1200px;margin:0 auto;padding:32px 24px}
+  .report-header{background:linear-gradient(135deg,#161b22,#1a2332);border:1px solid #30363d;border-radius:12px;padding:28px 32px;margin-bottom:24px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px}
+  .logo{font-size:11px;font-weight:700;letter-spacing:1px;color:#58a6ff;background:rgba(88,166,255,0.1);border:1px solid rgba(88,166,255,0.3);border-radius:6px;padding:4px 10px;display:inline-block;margin-bottom:8px}
+  .report-title{font-size:22px;font-weight:800;color:#e6edf3;margin-bottom:4px}
+  .report-sub{font-size:13px;color:#8b949e}
+  .report-meta{text-align:left;font-size:12px;color:#8b949e;line-height:1.8}
+  .report-meta strong{color:#58a6ff}
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:24px}
+  .kpi{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px 20px;text-align:center}
+  .kpi-val{font-size:28px;font-weight:800;margin-bottom:4px}
+  .kpi-label{font-size:11px;color:#8b949e;font-weight:500}
+  .table-wrap{background:#161b22;border:1px solid #30363d;border-radius:12px;overflow:hidden}
+  .table-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #30363d}
+  .table-header h3{font-size:13px;font-weight:700;color:#e6edf3}
+  table{width:100%;border-collapse:collapse}
+  th{padding:10px 14px;text-align:right;font-size:11px;color:#8b949e;font-weight:600;background:#0d1117;border-bottom:1px solid #30363d}
+  .actions{text-align:center;margin-top:24px}
+  .btn-print{background:#238636;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer}
+  .footer{margin-top:20px;text-align:center;font-size:11px;color:#484f58}
+  @media print{body{background:#fff;color:#000}.page{padding:0}.actions{display:none}}
+</style></head>
+<body><div class="page">
+  <div class="report-header">
+    <div><div class="logo">SOC CYBER MANAGEMENT</div><div class="report-title">דוח משמרות שבועי</div><div class="report-sub">שבוע ${from} — ${to}</div></div>
+    <div class="report-meta"><div>Generated: <strong>${gen}</strong></div><div>משמרות: <strong>${fShift.length}</strong></div></div>
+  </div>
+  <div class="kpi-row">${statsHtml2}</div>
+  <div class="table-wrap">
+    <div class="table-header"><h3>סידור משמרות</h3><span style="font-size:12px;color:#8b949e">${from} — ${to}</span></div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th style="padding:10px 14px;text-align:right;font-size:11px;color:#8b949e;font-weight:600;background:#0d1117;border-bottom:1px solid #30363d;min-width:110px">משמרת</th>${headCols}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table></div>
+  </div>
+  <div class="actions"><button class="btn-print" onclick="window.print()">🖨 Print / Save as PDF</button></div>
+  <div class="footer">Cyber Management SOC System &mdash; ${gen}</div>
+</div></body></html>`;
+        downloadHTML('shifts-weekly', shiftGridHtml);
         break;
       }
     }
@@ -1131,36 +1191,68 @@ export function Reports() {
                 </table>
               )}
 
-              {reportType === 'shifts' && (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      {['תאריך', 'יום', 'משמרת', 'אנליסט', 'שעת התחלה', 'שעת סיום', 'הערות'].map(h => <th key={h} style={thSt}>{h}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fShift.map(s => {
-                      const shiftColor = SHIFT_TYPE_COLOR[s.shiftType] || 'var(--text-primary)';
-                      const dayName = DAY_NAMES[new Date(s.date + 'T12:00:00').getDay()];
-                      return (
-                        <tr key={s.id} className="hover:bg-[var(--bg-hover)]">
-                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', whiteSpace: 'nowrap' }}>{s.date}</td>
-                          <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>{dayName}</td>
-                          <td style={tdSt}>
-                            <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: `${shiftColor}20`, color: shiftColor }}>
-                              {SHIFT_TYPE_LABELS[s.shiftType] || s.shiftType}
-                            </span>
-                          </td>
-                          <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>{analystMap[s.analystId] || `#${s.analystId}`}</td>
-                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', whiteSpace: 'nowrap' }}>{s.startTime || '—'}</td>
-                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', whiteSpace: 'nowrap' }}>{s.endTime || '—'}</td>
-                          <td style={{ ...tdSt, maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.notes || '—'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
+              {reportType === 'shifts' && (() => {
+                const sun = new Date(weekBounds.from + 'T12:00:00');
+                const weekDays = Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(sun); d.setDate(sun.getDate() + i);
+                  return d.toISOString().split('T')[0];
+                });
+                const grid: Record<string, Record<string, string[]>> = { morning: {}, afternoon: {}, night: {} };
+                fShift.forEach(s => {
+                  if (!grid[s.shiftType][s.date]) grid[s.shiftType][s.date] = [];
+                  grid[s.shiftType][s.date].push(analystMap[s.analystId] || `#${s.analystId}`);
+                });
+                const SHIFT_HOURS: Record<string, string> = { morning: '07:00–15:00', afternoon: '15:00–23:00', night: '23:00–07:00' };
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...thSt, width: '110px' }}>משמרת</th>
+                        {weekDays.map(date => {
+                          const isToday = date === today;
+                          return (
+                            <th key={date} style={{ ...thSt, textAlign: 'center', minWidth: '110px', background: isToday ? 'rgba(88,166,255,0.08)' : undefined }}>
+                              <div style={{ fontWeight: 700, color: isToday ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>
+                                {DAY_NAMES[new Date(date + 'T12:00:00').getDay()]}
+                              </div>
+                              <div style={{ fontSize: '10px', color: isToday ? 'var(--accent-primary)' : 'var(--text-muted)', fontWeight: 400, marginTop: '2px' }}>
+                                {date.slice(5).replace('-', '/')}
+                              </div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(['morning', 'afternoon', 'night'] as const).map(shiftType => {
+                        const color = SHIFT_TYPE_COLOR[shiftType];
+                        return (
+                          <tr key={shiftType}>
+                            <td style={{ ...tdSt, verticalAlign: 'middle', background: `${color}10`, borderLeft: `3px solid ${color}` }}>
+                              <span style={{ display: 'block', fontWeight: 700, fontSize: '12px', color }}>{SHIFT_TYPE_LABELS[shiftType]}</span>
+                              <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>{SHIFT_HOURS[shiftType]}</span>
+                            </td>
+                            {weekDays.map(date => {
+                              const names = grid[shiftType][date] || [];
+                              const isToday = date === today;
+                              return (
+                                <td key={date} style={{ ...tdSt, textAlign: 'center', verticalAlign: 'middle', padding: '10px 8px', background: isToday ? 'rgba(88,166,255,0.04)' : names.length ? `${color}06` : undefined, minHeight: '60px' }}>
+                                  {names.length === 0
+                                    ? <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>—</span>
+                                    : names.map((name, i) => (
+                                      <div key={i} style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', padding: '2px 6px', borderRadius: '6px', background: `${color}18`, marginBottom: i < names.length - 1 ? '4px' : 0 }}>{name}</div>
+                                    ))
+                                  }
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()}
 
               {reportType === 'activity' && (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1183,7 +1275,7 @@ export function Reports() {
                 </table>
               )}
 
-              {resultCount === 0 && (
+              {resultCount === 0 && reportType !== 'shifts' && (
                 <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)', fontSize: '13px' }}>
                   <FileBarChart2 size={32} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
                   אין נתונים להצגה עם הסינון הנוכחי
