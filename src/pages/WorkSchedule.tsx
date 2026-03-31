@@ -7,6 +7,7 @@ import { analystsApi, settingsApi, usersApi } from '../api/client';
 import { useAppStore } from '../store/appStore';
 import type { Analyst, Shift, ShiftType } from '../types';
 import { format, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns';
+import { getAnalystColor } from '../utils/analystColors';
 
 // ─── Shift definitions ──────────────────────────────────────────
 const SHIFTS_8H = [
@@ -279,12 +280,13 @@ export function WorkSchedule() {
                             {assigned.map(s => {
                               const analyst = analysts.find(a => a.id === s.analystId);
                               if (!analyst) return null;
+                              const ac = getAnalystColor(s.analystId);
                               return (
                                 <div key={s.id} style={{
                                   padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
-                                  background: SHIFT_COLORS[shiftDef.type].bg,
-                                  color: SHIFT_COLORS[shiftDef.type].color,
-                                  border: `1px solid ${SHIFT_COLORS[shiftDef.type].color}30`,
+                                  background: ac.bg,
+                                  color: ac.color,
+                                  border: `1px solid ${ac.color}40`,
                                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                 }}>
                                   {analyst.name}

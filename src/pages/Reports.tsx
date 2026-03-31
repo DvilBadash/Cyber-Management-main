@@ -6,6 +6,7 @@ import { useIncidentsStore } from '../store/incidentsStore';
 import { useTasksStore } from '../store/tasksStore';
 import { useSystemsStore } from '../store/systemsStore';
 import { eventsApi, usersApi, inventoryApi, analystsApi } from '../api/client';
+import { getAnalystColor } from '../utils/analystColors';
 import type { SpecialEvent, ActivityLog, User, Loan, Analyst, Shift } from '../types';
 import {
   SEVERITY_LABELS, INCIDENT_STATUS_LABELS, TASK_STATUS_LABELS,
@@ -559,10 +560,10 @@ export function Reports() {
           const d = new Date(sun2); d.setDate(sun2.getDate() + i);
           return d.toISOString().split('T')[0];
         });
-        const gridHtml: Record<string, Record<string, string[]>> = { morning: {}, afternoon: {}, night: {} };
+        const gridHtml: Record<string, Record<string, { id: number; name: string }[]>> = { morning: {}, afternoon: {}, night: {} };
         fShift.forEach(s => {
           if (!gridHtml[s.shiftType][s.date]) gridHtml[s.shiftType][s.date] = [];
-          gridHtml[s.shiftType][s.date].push(analystMap[s.analystId] || `#${s.analystId}`);
+          gridHtml[s.shiftType][s.date].push({ id: s.analystId, name: analystMap[s.analystId] || `#${s.analystId}` });
         });
         const SHIFT_HOURS_H: Record<string, string> = { morning: '07:00–15:00', afternoon: '15:00–23:00', night: '23:00–07:00' };
         const SHIFT_COLOR_H: Record<string, string> = { morning: '#f59e0b', afternoon: '#58a6ff', night: '#a371f7' };
@@ -573,12 +574,16 @@ export function Reports() {
         const bodyRows = (['morning', 'afternoon', 'night'] as const).map(st => {
           const color = SHIFT_COLOR_H[st];
           const firstCell = `<td style="padding:10px 14px;font-size:12px;border-bottom:1px solid #21262d;background:${color}18;border-left:3px solid ${color};white-space:nowrap"><span style="font-weight:700;color:${color}">${SHIFT_TYPE_LABELS[st]}</span><br/><span style="font-size:10px;color:#8b949e;font-family:monospace">${SHIFT_HOURS_H[st]}</span></td>`;
+          const ANALYST_PALETTE = ['#38bdf8','#34d399','#f472b6','#fb923c','#a78bfa','#facc15','#4ade80','#f87171','#60a5fa','#e879f9','#2dd4bf','#fbbf24'];
           const dayCells = weekDaysHtml.map(date => {
-            const names = gridHtml[st][date] || [];
-            const inner = names.length === 0
+            const entries = gridHtml[st][date] || [];
+            const inner = entries.length === 0
               ? '<span style="color:#484f58;font-size:11px">—</span>'
-              : names.map(n => `<div style="font-size:12px;font-weight:600;color:#e6edf3;background:${color}22;border-radius:6px;padding:2px 8px;margin-bottom:3px">${n}</div>`).join('');
-            return `<td style="padding:10px 8px;text-align:center;border-bottom:1px solid #21262d;vertical-align:middle;background:${names.length ? color + '08' : 'transparent'}">${inner}</td>`;
+              : entries.map(e => {
+                  const ac = ANALYST_PALETTE[e.id % ANALYST_PALETTE.length];
+                  return `<div style="font-size:12px;font-weight:600;color:${ac};background:${ac}22;border:1px solid ${ac}40;border-radius:6px;padding:2px 8px;margin-bottom:3px">${e.name}</div>`;
+                }).join('');
+            return `<td style="padding:10px 8px;text-align:center;border-bottom:1px solid #21262d;vertical-align:middle">${inner}</td>`;
           }).join('');
           return `<tr>${firstCell}${dayCells}</tr>`;
         }).join('');
@@ -1197,10 +1202,10 @@ export function Reports() {
                   const d = new Date(sun); d.setDate(sun.getDate() + i);
                   return d.toISOString().split('T')[0];
                 });
-                const grid: Record<string, Record<string, string[]>> = { morning: {}, afternoon: {}, night: {} };
+                const grid: Record<string, Record<string, { id: number; name: string }[]>> = { morning: {}, afternoon: {}, night: {} };
                 fShift.forEach(s => {
                   if (!grid[s.shiftType][s.date]) grid[s.shiftType][s.date] = [];
-                  grid[s.shiftType][s.date].push(analystMap[s.analystId] || `#${s.analystId}`);
+                  grid[s.shiftType][s.date].push({ id: s.analystId, name: analystMap[s.analystId] || `#${s.analystId}` });
                 });
                 const SHIFT_HOURS: Record<string, string> = { morning: '07:00–15:00', afternoon: '15:00–23:00', night: '23:00–07:00' };
                 return (
@@ -1236,12 +1241,15 @@ export function Reports() {
                               const names = grid[shiftType][date] || [];
                               const isToday = date === today;
                               return (
-                                <td key={date} style={{ ...tdSt, textAlign: 'center', verticalAlign: 'middle', padding: '10px 8px', background: isToday ? 'rgba(88,166,255,0.04)' : names.length ? `${color}06` : undefined, minHeight: '60px' }}>
+                                <td key={date} style={{ ...tdSt, textAlign: 'center', verticalAlign: 'middle', padding: '10px 8px', background: isToday ? 'rgba(88,166,255,0.04)' : undefined, minHeight: '60px' }}>
                                   {names.length === 0
                                     ? <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>—</span>
-                                    : names.map((name, i) => (
-                                      <div key={i} style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', padding: '2px 6px', borderRadius: '6px', background: `${color}18`, marginBottom: i < names.length - 1 ? '4px' : 0 }}>{name}</div>
-                                    ))
+                                    : names.map((entry, i) => {
+                                        const ac = getAnalystColor(entry.id);
+                                        return (
+                                          <div key={i} style={{ fontSize: '12px', fontWeight: 600, color: ac.color, padding: '2px 8px', borderRadius: '6px', background: ac.bg, border: `1px solid ${ac.color}40`, marginBottom: i < names.length - 1 ? '4px' : 0 }}>{entry.name}</div>
+                                        );
+                                      })
                                   }
                                 </td>
                               );
