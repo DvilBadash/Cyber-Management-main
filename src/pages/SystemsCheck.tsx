@@ -162,15 +162,15 @@ export function SystemsCheck() {
     return d;
   });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   // ── Daily sessions ────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<DailyCheckSession[]>([]);
 
   const loadSessions = useCallback(async () => {
     try {
-      const start = weekStart.toISOString().split('T')[0];
-      const end = addDays(weekStart, 6).toISOString().split('T')[0];
+      const start = format(weekStart, 'yyyy-MM-dd');
+      const end = format(addDays(weekStart, 6), 'yyyy-MM-dd');
       const all = await systemsApi.getDailySessions();
       setSessions(all.filter(s => s.date >= start && s.date <= end));
     } catch {
@@ -427,7 +427,7 @@ export function SystemsCheck() {
           {/* Weekly grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px' }}>
             {days.map((day, i) => {
-              const dateStr = day.toISOString().split('T')[0];
+              const dateStr = format(day, 'yyyy-MM-dd');
               const session = getSession(dateStr);
               const isToday = dateStr === todayStr;
               const isPast = day < new Date() && !isToday;
