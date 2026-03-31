@@ -1,19 +1,34 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Download, AlertTriangle, CheckSquare, ShieldAlert, Monitor, Star, Activity, FileBarChart2, Package } from 'lucide-react';
+import { Download, AlertTriangle, CheckSquare, ShieldAlert, Monitor, Star, Activity, FileBarChart2, Package, CalendarDays } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useIncidentsStore } from '../store/incidentsStore';
 import { useTasksStore } from '../store/tasksStore';
 import { useSystemsStore } from '../store/systemsStore';
-import { eventsApi, usersApi, inventoryApi } from '../api/client';
-import type { SpecialEvent, ActivityLog, User, Loan } from '../types';
+import { eventsApi, usersApi, inventoryApi, analystsApi } from '../api/client';
+import type { SpecialEvent, ActivityLog, User, Loan, Analyst, Shift } from '../types';
 import {
   SEVERITY_LABELS, INCIDENT_STATUS_LABELS, TASK_STATUS_LABELS,
   TASK_PRIORITY_LABELS, SPECIAL_EVENT_TYPE_LABELS,
   LOAN_STATUS_LABELS, INVENTORY_TYPE_LABELS,
 } from '../types';
 
-type ReportType = 'incidents' | 'tasks' | 'cves' | 'systems' | 'events' | 'activity' | 'loans';
+type ReportType = 'incidents' | 'tasks' | 'cves' | 'systems' | 'events' | 'activity' | 'loans' | 'shifts';
+
+const SHIFT_TYPE_LABELS: Record<string, string> = { morning: 'בוקר', afternoon: 'צהריים', night: 'לילה' };
+const SHIFT_TYPE_COLOR: Record<string, string> = { morning: '#f59e0b', afternoon: '#58a6ff', night: '#a371f7' };
+const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+function getWeekBounds(anchorDate: string): { from: string; to: string } {
+  const d = new Date(anchorDate + 'T12:00:00');
+  const day = d.getDay(); // 0=Sun
+  const sun = new Date(d); sun.setDate(d.getDate() - day);
+  const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
+  return {
+    from: sun.toISOString().split('T')[0],
+    to:   sat.toISOString().split('T')[0],
+  };
+}
 
 const REPORT_TYPES: { id: ReportType; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
   { id: 'incidents', label: 'דוח אירועים', icon: AlertTriangle },
@@ -23,6 +38,7 @@ const REPORT_TYPES: { id: ReportType; label: string; icon: React.ComponentType<{
   { id: 'events', label: 'אירועים מיוחדים', icon: Star },
   { id: 'activity', label: 'לוג פעולות', icon: Activity },
   { id: 'loans', label: 'היסטוריית השאלות', icon: Package },
+  { id: 'shifts', label: 'דוח משמרות שבועי', icon: CalendarDays },
 ];
 
 function exportCSV(filename: string, rows: Record<string, string | number | boolean | undefined>[]) {
@@ -240,6 +256,8 @@ export function Reports() {
   const [activityLogs, setActivityLogs] = useState<(ActivityLog & { username?: string })[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [analysts, setAnalysts] = useState<Analyst[]>([]);
 
   const today = new Date().toISOString().split('T')[0];
   const d30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -251,12 +269,20 @@ export function Reports() {
   const [evtF, setEvtF] = useState({ dateFrom: '', dateTo: '', type: '', status: '' });
   const [actF, setActF] = useState({ dateFrom: d30, dateTo: today, module: '', userId: '' });
   const [loanF, setLoanF] = useState({ dateFrom: '', dateTo: '', status: '', itemType: '', borrower: '' });
+  const [shiftF, setShiftF] = useState({ weekAnchor: today, analystId: '', shiftType: '' });
 
   useEffect(() => {
     eventsApi.getAll().then(setSpecialEvents);
     usersApi.getAll().then(setUsers);
     inventoryApi.getLoans().then(setLoans);
+    analystsApi.getAll().then(setAnalysts);
   }, []);
+
+  useEffect(() => {
+    if (reportType !== 'shifts') return;
+    const { from, to } = getWeekBounds(shiftF.weekAnchor);
+    analystsApi.getShifts(from, to).then(setShifts);
+  }, [reportType, shiftF.weekAnchor]);
 
   useEffect(() => {
     if (reportType !== 'activity') return;
@@ -311,11 +337,24 @@ export function Reports() {
     (!loanF.borrower || l.borrowerName.toLowerCase().includes(loanF.borrower.toLowerCase()))
   ), [loans, loanF]);
 
+  const weekBounds = useMemo(() => getWeekBounds(shiftF.weekAnchor), [shiftF.weekAnchor]);
+  const analystMap = useMemo(() => {
+    const m: Record<number, string> = {};
+    analysts.forEach(a => { m[a.id!] = a.name; });
+    return m;
+  }, [analysts]);
+
+  const fShift = useMemo(() => shifts.filter(s =>
+    (!shiftF.analystId || String(s.analystId) === shiftF.analystId) &&
+    (!shiftF.shiftType || s.shiftType === shiftF.shiftType)
+  ).sort((a, b) => a.date.localeCompare(b.date) || ['morning','afternoon','night'].indexOf(a.shiftType) - ['morning','afternoon','night'].indexOf(b.shiftType)),
+  [shifts, shiftF.analystId, shiftF.shiftType]);
+
   const actModules = useMemo(() => [...new Set(activityLogs.map(l => l.module))].sort(), [activityLogs]);
   const incCategories = useMemo(() => [...new Set(incidents.map(i => i.category))].sort(), [incidents]);
   const sysCats = useMemo(() => [...new Set(systems.map(s => s.category))].sort(), [systems]);
 
-  const resultCount = { incidents: fInc.length, tasks: fTask.length, cves: fCve.length, systems: fSys.length, events: fEvt.length, activity: fAct.length, loans: fLoan.length }[reportType];
+  const resultCount = { incidents: fInc.length, tasks: fTask.length, cves: fCve.length, systems: fSys.length, events: fEvt.length, activity: fAct.length, loans: fLoan.length, shifts: fShift.length }[reportType];
 
   const handleExport = () => {
     switch (reportType) {
@@ -368,6 +407,17 @@ export function Reports() {
           'מטרה': l.purpose || '', 'תאריך השאלה': l.loanedAt.slice(0, 10),
           'יעד החזרה': l.expectedReturn || '', 'הוחזר': l.returnedAt?.slice(0, 10) || '',
           'סטטוס': LOAN_STATUS_LABELS[l.status],
+        })));
+        break;
+      case 'shifts':
+        exportCSV('shifts-weekly', fShift.map(s => ({
+          'תאריך': s.date,
+          'יום': DAY_NAMES[new Date(s.date + 'T12:00:00').getDay()],
+          'משמרת': SHIFT_TYPE_LABELS[s.shiftType] || s.shiftType,
+          'אנליסט': analystMap[s.analystId] || String(s.analystId),
+          'שעת התחלה': s.startTime || '',
+          'שעת סיום': s.endTime || '',
+          'הערות': s.notes || '',
         })));
         break;
     }
@@ -502,6 +552,23 @@ export function Reports() {
           ])
         ));
         break;
+      case 'shifts': {
+        const { from, to } = weekBounds;
+        downloadHTML('shifts-weekly', buildHtmlDoc(
+          'דוח משמרות שבועי', `שבוע ${from} — ${to}`, gen, stat,
+          ['תאריך', 'יום', 'משמרת', 'אנליסט', 'שעת התחלה', 'שעת סיום', 'הערות'],
+          fShift.map(s => [
+            { text: s.date, mono: true },
+            DAY_NAMES[new Date(s.date + 'T12:00:00').getDay()],
+            { text: SHIFT_TYPE_LABELS[s.shiftType] || s.shiftType, color: SHIFT_TYPE_COLOR[s.shiftType], badge: true },
+            analystMap[s.analystId] || String(s.analystId),
+            { text: s.startTime || '—', mono: true },
+            { text: s.endTime || '—', mono: true },
+            s.notes || '—',
+          ])
+        ));
+        break;
+      }
     }
   };
 
@@ -564,8 +631,16 @@ export function Reports() {
         { label: 'הוחזרו', value: fLoan.filter(l => l.status === 'returned').length, color: 'var(--accent-success)' },
       ];
     }
+    if (reportType === 'shifts') {
+      return [
+        { label: 'סה"כ', value: fShift.length, color: 'var(--accent-primary)' },
+        { label: 'בוקר', value: fShift.filter(s => s.shiftType === 'morning').length, color: '#f59e0b' },
+        { label: 'צהריים', value: fShift.filter(s => s.shiftType === 'afternoon').length, color: '#58a6ff' },
+        { label: 'לילה', value: fShift.filter(s => s.shiftType === 'night').length, color: '#a371f7' },
+      ];
+    }
     return [{ label: 'רשומות', value: fAct.length, color: 'var(--accent-primary)' }];
-  }, [reportType, fInc, fTask, fCve, fSys, fEvt, fAct, fLoan]);
+  }, [reportType, fInc, fTask, fCve, fSys, fEvt, fAct, fLoan, fShift]);
 
   return (
     <div>
@@ -799,6 +874,35 @@ export function Reports() {
                   </div>
                 </>)}
 
+                {/* ── Shifts filters ── */}
+                {reportType === 'shifts' && (<>
+                  <div>
+                    <label style={labelSt}>שבוע (בחר תאריך בשבוע)</label>
+                    <input type="date" style={inputSt} value={shiftF.weekAnchor} onChange={e => setShiftF(f => ({ ...f, weekAnchor: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: '6px', padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                      {weekBounds.from} — {weekBounds.to}
+                    </span>
+                  </div>
+                  <div>
+                    <label style={labelSt}>אנליסט</label>
+                    <select style={inputSt} value={shiftF.analystId} onChange={e => setShiftF(f => ({ ...f, analystId: e.target.value }))}>
+                      <option value="">הכל</option>
+                      {analysts.filter(a => a.status === 'active').map(a => <option key={a.id} value={String(a.id)}>{a.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelSt}>סוג משמרת</label>
+                    <select style={inputSt} value={shiftF.shiftType} onChange={e => setShiftF(f => ({ ...f, shiftType: e.target.value }))}>
+                      <option value="">הכל</option>
+                      <option value="morning">בוקר</option>
+                      <option value="afternoon">צהריים</option>
+                      <option value="night">לילה</option>
+                    </select>
+                  </div>
+                </>)}
+
                 {/* ── Activity filters ── */}
                 {reportType === 'activity' && (<>
                   <div>
@@ -1020,6 +1124,37 @@ export function Reports() {
                               {LOAN_STATUS_LABELS[l.status]}
                             </span>
                           </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+
+              {reportType === 'shifts' && (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {['תאריך', 'יום', 'משמרת', 'אנליסט', 'שעת התחלה', 'שעת סיום', 'הערות'].map(h => <th key={h} style={thSt}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fShift.map(s => {
+                      const shiftColor = SHIFT_TYPE_COLOR[s.shiftType] || 'var(--text-primary)';
+                      const dayName = DAY_NAMES[new Date(s.date + 'T12:00:00').getDay()];
+                      return (
+                        <tr key={s.id} className="hover:bg-[var(--bg-hover)]">
+                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', whiteSpace: 'nowrap' }}>{s.date}</td>
+                          <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>{dayName}</td>
+                          <td style={tdSt}>
+                            <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 600, background: `${shiftColor}20`, color: shiftColor }}>
+                              {SHIFT_TYPE_LABELS[s.shiftType] || s.shiftType}
+                            </span>
+                          </td>
+                          <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>{analystMap[s.analystId] || `#${s.analystId}`}</td>
+                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', whiteSpace: 'nowrap' }}>{s.startTime || '—'}</td>
+                          <td style={{ ...tdSt, fontFamily: 'JetBrains Mono, monospace', fontSize: '11px', whiteSpace: 'nowrap' }}>{s.endTime || '—'}</td>
+                          <td style={{ ...tdSt, maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.notes || '—'}</td>
                         </tr>
                       );
                     })}
